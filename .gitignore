@@ -1,0 +1,8 @@
+data/seoul_transit.db
+data/raw/
+__pycache__/
+.DS_Store
+
+# github에서 제외할 것들
+# data/seoul_transit.db에서 만든 약 263만 행
+# 다운로드한 원본 csv들
