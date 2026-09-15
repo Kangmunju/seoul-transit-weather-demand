@@ -215,7 +215,7 @@ if __name__ == "__main__":
 # 모델 평가뿐 아니라 nearest_gap()에서도 같은 인덱스를 사용
 # train과 test가 시간상 얼마나 떨어져 있는지 비교 가능
 
-# nearest_gat()으로 각 test 날짜와 가장 가까운 train 날짜의 거리를 계산
+# nearest_gap()으로 각 test 날짜와 가장 가까운 train 날짜의 거리를 계산
 # 랜덤 split에서는 train/test가 시간축에서 매우 가깝게 섞이는 것을 확인
 # 시간순 split에서는 두 구간이 시간적으로 분리되는 것을 확인
 # 단, 날짜가 가깝다는 사실 자체를 데이터 누수라고 단정하지는 않았음
