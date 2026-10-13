@@ -1,5 +1,6 @@
 # python src/build_db.py
 
+import argparse
 import csv
 import sqlite3
 from pathlib import Path
@@ -175,83 +176,78 @@ def build_weather(con):
     )
 
 
-def main():
-    # SQLite 연결
-    con = sqlite3.connect(DB_PATH)
+def main(db_path=DB_PATH):
+    # 지정한 경로에 SQLite 연결
+    db_path = Path(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # db.py에 만든 테이블 구조 적용
-    con.executescript(SCHEMA)
+    con = sqlite3.connect(db_path)
 
-    # 지하철과 날씨 적재
-    build_subway(con)
-    build_weather(con)
+    try:
+        # db.py에 만든 테이블 구조 적용
+        con.executescript(SCHEMA)
 
-    # 최종 행 수 확인
-    subway_count = con.execute("SELECT COUNT(*) FROM subway_daily").fetchone()[0]
+        # 지하철과 날씨 적재
+        build_subway(con)
+        build_weather(con)
 
-    subway_days = con.execute(
-        "SELECT COUNT(DISTINCT date) FROM subway_daily"
-    ).fetchone()[0]
+        # 최종 행 수 확인
+        subway_count = con.execute("SELECT COUNT(*) FROM subway_daily").fetchone()[0]
 
-    weather_count = con.execute("SELECT COUNT(*) FROM weather_daily").fetchone()[0]
+        subway_days = con.execute(
+            "SELECT COUNT(DISTINCT date) FROM subway_daily"
+        ).fetchone()[0]
 
-    print(
-        f"[검증] subway_daily {subway_count:,}행 "
-        f"(고유 {subway_days}일) / "
-        f"weather_daily {weather_count}행"
+        weather_count = con.execute("SELECT COUNT(*) FROM weather_daily").fetchone()[0]
+
+        print(
+            f"[검증] subway_daily {subway_count:,}행 "
+            f"(고유 {subway_days}일) / "
+            f"weather_daily {weather_count}행"
+        )
+
+    finally:
+        con.close()
+
+    print(f"[ok ] {db_path} 적재 완료")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="지하철 및 날씨 CSV를 SQLite DB에 적재"
     )
 
-    con.close()
+    parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=DB_PATH,
+        help="SQLite DB 저장 경로",
+    )
 
-    print(f"[ok ] data/seoul_transit.db 적재 완료")
+    args = parser.parse_args()
 
+    main(args.db_path)
 
-main()
-
-
-# ============================================================
-
-# [지하철] subway_daily_2019.csv: 215,769행
-# [지하철] subway_daily_2020.csv: 217,055행
-# [지하철] subway_daily_2021.csv: 219,278행
-# [지하철] subway_daily_2022.csv: 219,745행
-# [지하철] subway_daily_2023.csv: 222,162행
-# [지하철] subway_daily_2024.csv: 225,512행
-# [지하철] 6개 파일 결합 → 1,319,521행
-# [지하철] 원본 1,319,521행, 열 6
-# [지하철] subway_daily: 2,639,042행 → insert 2,638,670 / skip(중복) 372
-# [날씨] weather_daily: 2,192행 → insert 2,192 / skip 0
-# [검증] subway_daily 2,638,670행 (고유 2192일) / weather_daily 2192행
-# [ok ] data/seoul_transit.db 적재 완료
-
-# 같은 적재 코드를 여러 번 실행해도 DB 데이터가 불어나지 않음을 검증함
 
 # ============================================================
+# [구현 핵심]
+# ============================================================
 
-# data/raw에 받은 csv를 SQLite 데이터베이스에 넣는 파일
-
-# 1. read_one()
-# 지하철 csv를 읽음
-# 연도마다 인코딩이 달라도 읽을 수 있게 여러 개를 순서대로 확인
-# 행에 쓸데없는 값이 더 붙어 있어도 원래 컬럼 개수까지만 가져옴
-
-# 2. build_subway()
-# 2019~2024 지하철 파일을 하나로 합침
-# 승차, 하차를 각각 한 행으로 나눠 long 형태로 만들었음
-# DB에 넣기 전 행 수는 원본의 2배가 됨
-
-# 3. build_weather()
-# Open-Metro 날씨 csv를 읽음
-# 긴 원본 컬럼명을 DB에서 쓸 짧은 이름으로 변경하였음
-
-# 4. _upsert()
-# db.py에서 만든 함수를 사용
-# 이미 있는 데이터는 중복 저장하지 않고 건너뜀
-
-# main()
-# SQLite에 연결
-# 테이블을 만들고 지하철과 날씨를 넣음
-# 마지막에 실제 저장된 행 수 확인
-
-# CSV를 단순히 읽고 끝내는 것이 아니라 인코딩, 컬럼 밀림, 중복 문제 등을 방지
-# 분석에 사용할 SQLite DB로 만드는 과정을 거쳤음
+# 2019~2024년 지하철 CSV와 날씨 CSV를 읽어 SQLite에 적재함
+# 승차·하차를 개별 행으로 변환하고 고유 키 기준으로 중복 저장을 방지함
+# 기본 DB 경로와 별도로 임시 DB 경로를 지정할 수 있도록 구현함
+#
+# [발견한 문제 및 수정]
+# 1. DB 저장 경로가 고정되어 빈 DB 검증 시 기존 DB를 건드릴 위험이 있었음
+#    → --db-path 옵션을 추가하여 별도 DB에 적재할 수 있도록 수정함
+#
+# 2. 파일을 import하면 main()이 자동 실행되는 구조였음
+#    → __main__ 조건을 추가하여 직접 실행할 때만 적재하도록 수정함
+#
+# 3. 최초 적재에서 372행이 중복으로 제외되는 실행 기록을 확인함
+#    → 기존 UNIQUE 기준을 유지하고 별도 DB에서 재현 여부를 검증하도록 구성함
+#
+# [추후 보완 사항]
+# 1. 중복 372행의 날짜·노선·역별 발생 원인 분석
+# 2. 중복 키에 서로 다른 이용량이 존재하는지 확인
+# 3. 중복 발생 시 어떤 값을 보존할지 처리 기준 명문화

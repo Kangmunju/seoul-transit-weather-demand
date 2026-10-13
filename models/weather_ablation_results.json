@@ -1,0 +1,142 @@
+{
+  "experiment": "weather_ablation",
+  "seed": 42,
+  "model": "RandomForestRegressor",
+  "n_estimators": 400,
+  "min_samples_leaf": 2,
+  "total_days": 2185,
+  "weather_features": [
+    "temp_mean",
+    "temp_max",
+    "temp_min",
+    "precip_mm",
+    "rain_mm",
+    "snow_from_precip",
+    "wind_max",
+    "humidity",
+    "is_rain",
+    "is_precip",
+    "is_heavy_rain"
+  ],
+  "full_features": [
+    "temp_mean",
+    "temp_max",
+    "temp_min",
+    "precip_mm",
+    "rain_mm",
+    "snow_from_precip",
+    "wind_max",
+    "humidity",
+    "is_rain",
+    "is_precip",
+    "is_heavy_rain",
+    "dow",
+    "is_weekend",
+    "is_holiday",
+    "is_workday",
+    "month",
+    "lag_1",
+    "lag_7",
+    "roll7_mean",
+    "roll7_std",
+    "roll28_mean",
+    "dow_sin",
+    "dow_cos",
+    "pandemic_acute",
+    "pandemic_recovery"
+  ],
+  "no_weather_features": [
+    "dow",
+    "is_weekend",
+    "is_holiday",
+    "is_workday",
+    "month",
+    "lag_1",
+    "lag_7",
+    "roll7_mean",
+    "roll7_std",
+    "roll28_mean",
+    "dow_sin",
+    "dow_cos",
+    "pandemic_acute",
+    "pandemic_recovery"
+  ],
+  "split_comparison": {
+    "train_start": "2019-01-08",
+    "train_end": "2023-07-03",
+    "test_start": "2023-07-04",
+    "test_end": "2024-12-31",
+    "with_weather": {
+      "MAE": 347269.3,
+      "MAPE_%": 2.99,
+      "R2": 0.9649
+    },
+    "without_weather": {
+      "MAE": 377241.4,
+      "MAPE_%": 3.19,
+      "R2": 0.9615
+    },
+    "improvement_pp": 0.2
+  },
+  "heavy_rain": {
+    "threshold_mm": 30.0,
+    "days": 25,
+    "with_weather_mape": 4.32,
+    "without_weather_mape": 6.25,
+    "improvement_pp": 1.93
+  },
+  "walk_forward": [
+    {
+      "fold": 1,
+      "train_days": 365,
+      "test_days": 364,
+      "test_start": "2020-01-08",
+      "test_end": "2021-01-05",
+      "with_weather_mape": 34.01,
+      "without_weather_mape": 33.47,
+      "improvement_pp": -0.54
+    },
+    {
+      "fold": 2,
+      "train_days": 729,
+      "test_days": 364,
+      "test_start": "2021-01-06",
+      "test_end": "2022-01-04",
+      "with_weather_mape": 4.08,
+      "without_weather_mape": 4.28,
+      "improvement_pp": 0.2
+    },
+    {
+      "fold": 3,
+      "train_days": 1093,
+      "test_days": 364,
+      "test_start": "2022-01-05",
+      "test_end": "2023-01-03",
+      "with_weather_mape": 5.49,
+      "without_weather_mape": 5.33,
+      "improvement_pp": -0.16
+    },
+    {
+      "fold": 4,
+      "train_days": 1457,
+      "test_days": 364,
+      "test_start": "2023-01-04",
+      "test_end": "2024-01-02",
+      "with_weather_mape": 3.4,
+      "without_weather_mape": 3.55,
+      "improvement_pp": 0.15
+    },
+    {
+      "fold": 5,
+      "train_days": 1821,
+      "test_days": 364,
+      "test_start": "2024-01-03",
+      "test_end": "2024-12-31",
+      "with_weather_mape": 2.84,
+      "without_weather_mape": 3.11,
+      "improvement_pp": 0.27
+    }
+  ],
+  "helpful_folds": 3,
+  "mean_fold_improvement_pp": -0.02
+}
