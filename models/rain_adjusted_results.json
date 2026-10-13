@@ -1,0 +1,28 @@
+{
+  "experiment": "rain_adjusted",
+  "rain_definition": "rain_mm >= 1.0",
+  "simple_comparison": {
+    "rain_days": 604,
+    "no_rain_days": 1588,
+    "rain_mean": 12383644.9,
+    "no_rain_mean": 12779473.4,
+    "difference": -395828.5,
+    "difference_pct": -3.1
+  },
+  "matched_comparison": {
+    "matched_groups": 324,
+    "matched_rain_days": 559,
+    "weighted_difference": -347015.3,
+    "weighted_difference_pct": -2.05
+  },
+  "adjusted_regression": {
+    "observations": 2192,
+    "control_variables": 78,
+    "rain_effect": -330335.3,
+    "robust_se": 48065.2,
+    "ci_95_low": -424543.1,
+    "ci_95_high": -236127.6,
+    "reference_mean": 12670403.8,
+    "relative_to_mean_pct": -2.61
+  }
+}

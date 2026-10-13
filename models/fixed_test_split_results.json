@@ -1,0 +1,48 @@
+{
+  "experiment": "fixed_test_split",
+  "seed": 42,
+  "test_start": "2022-01-01",
+  "test_end": "2022-12-31",
+  "test_days": 365,
+  "features": [
+    "temp_mean",
+    "temp_max",
+    "temp_min",
+    "precip_mm",
+    "rain_mm",
+    "snow_from_precip",
+    "wind_max",
+    "humidity",
+    "is_rain",
+    "is_precip",
+    "is_heavy_rain",
+    "dow",
+    "is_weekend",
+    "is_holiday",
+    "is_workday",
+    "month",
+    "lag_1",
+    "lag_7",
+    "roll7_mean",
+    "roll7_std",
+    "roll28_mean",
+    "dow_sin",
+    "dow_cos",
+    "pandemic_acute",
+    "pandemic_recovery"
+  ],
+  "train_days_each": 1089,
+  "mixed_future_days": 431,
+  "time_split": {
+    "MAE": 645481.9,
+    "MAPE_%": 5.43,
+    "R2": 0.9174
+  },
+  "mixed_split": {
+    "MAE": 341334.1,
+    "MAPE_%": 3.32,
+    "R2": 0.9737
+  },
+  "mixed_mape_improvement_pp": 2.11,
+  "interpretation": "동일한 테스트 기간과 학습 데이터 개수에서 과거 학습과 과거·미래 혼합 학습을 비교한 진단 실험. 혼합 학습은 미래 정보를 허용하므로 실제 미래 예측 성능으로 해석할 수 없음."
+}
