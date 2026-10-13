@@ -43,6 +43,23 @@ def load_data():
     return data, metrics, importance, predictions
 
 
+@st.cache_data
+def load_leakage_results():
+    # 분석 스크립트가 생성한 검증 결과 불러오기
+    result_path = MODEL_DIR / "leakage_results.json"
+
+    if not result_path.exists():
+        st.error(
+            "검증 결과 파일이 없습니다. "
+            "프로젝트 최상위 폴더에서 "
+            "'python analysis/a3_leakage.py'를 먼저 실행해 주세요."
+        )
+        st.stop()
+
+    with open(result_path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
 def show_overview(data, metrics):
     st.header("프로젝트 개요")
 
@@ -70,7 +87,7 @@ def show_overview(data, metrics):
 
     col3.metric(
         "일평균 이용량",
-        f"{avg_ride / 10000:,.0f}만 명",
+        f"{avg_ride / 10000:,.0f}만 건",
     )
 
     col4.metric(
@@ -79,6 +96,10 @@ def show_overview(data, metrics):
     )
 
     st.caption(f"Random Forest 테스트 MAPE: {rf_mape:.2f}%")
+    st.caption(
+        "※ 이용량은 승차 건수와 하차 건수를 합산한 값으로, "
+        "실제 고유 이용자 수를 의미하지 않습니다."
+    )
 
     st.divider()
 
@@ -149,12 +170,12 @@ def show_usage_pattern(data):
 
     col1.metric(
         "평일 일평균 이용량",
-        f"{weekday_avg / 10000:,.0f}만 명",
+        f"{weekday_avg / 10000:,.0f}만 건",
     )
 
     col2.metric(
         "주말 일평균 이용량",
-        f"{weekend_avg / 10000:,.0f}만 명",
+        f"{weekend_avg / 10000:,.0f}만 건",
     )
 
     col3.metric(
@@ -181,10 +202,38 @@ def show_usage_pattern(data):
 
     daily_pattern["요일"] = daily_pattern["dow"].map(day_names)
 
-    st.bar_chart(
-        daily_pattern,
-        x="요일",
-        y="ride",
+    # 요일을 월요일부터 일요일 순서로 표시
+    weekday_chart = (
+        alt.Chart(daily_pattern)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "요일:N",
+                title="요일",
+                sort=["월", "화", "수", "목", "금", "토", "일"],
+            ),
+            y=alt.Y(
+                "ride:Q",
+                title="평균 이용량 (건)",
+            ),
+            tooltip=[
+                alt.Tooltip(
+                    "요일:N",
+                    title="요일",
+                ),
+                alt.Tooltip(
+                    "ride:Q",
+                    title="평균 이용량 (건)",
+                    format=",.0f",
+                ),
+            ],
+        )
+        .properties(height=400)
+    )
+
+    st.altair_chart(
+        weekday_chart,
+        use_container_width=True,
     )
 
     st.caption(
@@ -234,12 +283,12 @@ def show_weather_effect(data):
 
     col1.metric(
         "비 오는 날 일평균",
-        f"{rainy_avg / 10000:,.0f}만 명",
+        f"{rainy_avg / 10000:,.0f}만 건",
     )
 
     col2.metric(
         "비 안 오는 날 일평균",
-        f"{dry_avg / 10000:,.0f}만 명",
+        f"{dry_avg / 10000:,.0f}만 건",
     )
 
     col3.metric(
@@ -382,7 +431,7 @@ def show_pandemic(data):
 
     col1.metric(
         "2019 일평균",
-        f"{ride_2019 / 10000:,.0f}만 명",
+        f"{ride_2019 / 10000:,.0f}만 건",
     )
 
     col2.metric(
@@ -423,7 +472,8 @@ def show_pandemic(data):
     workday = data[data["is_workday"] == 1].copy()
 
     def pandemic_period(row):
-        if row["date"] < pd.Timestamp("2020-01-01"):
+        # src/clean.py의 PANDEMIC_START 기준과 일치
+        if row["date"] < pd.Timestamp("2020-02-01"):
             return "팬데믹 이전"
 
         elif row["pandemic_acute"] == 1:
@@ -451,10 +501,38 @@ def show_pandemic(data):
         workday.groupby("국면")["ride"].mean().reindex(period_order).reset_index()
     )
 
-    st.bar_chart(
-        period_avg,
-        x="국면",
-        y="ride",
+    # 팬데믹 국면을 시간 순서대로 표시
+    period_chart = (
+        alt.Chart(period_avg)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "국면:N",
+                title="팬데믹 국면",
+                sort=period_order,
+            ),
+            y=alt.Y(
+                "ride:Q",
+                title="평일 평균 이용량 (건)",
+            ),
+            tooltip=[
+                alt.Tooltip(
+                    "국면:N",
+                    title="팬데믹 국면",
+                ),
+                alt.Tooltip(
+                    "ride:Q",
+                    title="평일 평균 이용량 (건)",
+                    format=",.0f",
+                ),
+            ],
+        )
+        .properties(height=400)
+    )
+
+    st.altair_chart(
+        period_chart,
+        use_container_width=True,
     )
 
     before_avg = period_avg.loc[
@@ -552,7 +630,7 @@ def show_prediction(metrics):
 
     col2.metric(
         "MAE",
-        f"{mae:,.0f}명",
+        f"{mae:,.0f}건",
     )
 
     col3.metric(
@@ -1052,30 +1130,10 @@ def show_model_analysis():
 
     st.subheader("왜 시계열 데이터는 시간순으로 검증해야 할까?")
 
-    split_result = pd.DataFrame(
-        {
-            "검증 방식": [
-                "랜덤 split",
-                "시간순 split",
-            ],
-            "MAE": [
-                349963,
-                347269,
-            ],
-            "MAPE (%)": [
-                3.61,
-                2.99,
-            ],
-            "R²": [
-                0.9723,
-                0.9649,
-            ],
-            "가장 가까운 학습 데이터": [
-                "중앙값 1일",
-                "중앙값 274일",
-            ],
-        }
-    )
+    # 하드코딩한 수치 대신 실제 분석 결과 사용
+    leakage_results = load_leakage_results()
+
+    split_result = pd.DataFrame(leakage_results["split_comparison"])
 
     st.dataframe(
         split_result.style.format(
@@ -1090,10 +1148,12 @@ def show_model_analysis():
     )
 
     st.warning(
-        "랜덤 split은 미래와 과거 데이터를 섞기 때문에 "
-        "테스트 날짜와 매우 가까운 날짜가 학습 데이터에 포함될 수 있습니다. "
-        "따라서 이 프로젝트의 최종 평가는 시간 순서를 유지한 "
-        "시간순 split을 기준으로 사용했습니다."
+        "랜덤 split에서는 테스트 날짜와 가까운 날짜가 학습 데이터에 "
+        "포함될 수 있지만, 이번 실험에서 랜덤 split의 MAPE가 "
+        "시간순 split보다 더 높았습니다. "
+        "두 방식은 테스트 구간도 다르므로 점수를 직접 비교해 "
+        "한쪽이 우수하다고 단정할 수 없습니다. "
+        "실제 미래 예측 상황에 맞춰 시간순 split을 최종 평가 기준으로 사용했습니다."
     )
 
     st.divider()
@@ -1104,52 +1164,8 @@ def show_model_analysis():
 
     st.subheader("Walk-forward 시계열 검증")
 
-    walk_forward = pd.DataFrame(
-        {
-            "fold": [
-                "fold1",
-                "fold2",
-                "fold3",
-                "fold4",
-                "fold5",
-            ],
-            "학습일수": [
-                365,
-                729,
-                1093,
-                1457,
-                1821,
-            ],
-            "테스트일수": [
-                364,
-                364,
-                364,
-                364,
-                364,
-            ],
-            "MAE": [
-                3092521,
-                363771,
-                659678,
-                384803,
-                336583,
-            ],
-            "MAPE (%)": [
-                34.01,
-                4.08,
-                5.49,
-                3.40,
-                2.84,
-            ],
-            "R²": [
-                -0.178,
-                0.969,
-                0.914,
-                0.956,
-                0.965,
-            ],
-        }
-    )
+    # Fold별 실제 분석 결과 불러오기
+    walk_forward = pd.DataFrame(leakage_results["walk_forward"])
 
     st.dataframe(
         walk_forward.style.format(
@@ -1171,6 +1187,7 @@ def show_model_analysis():
             x=alt.X(
                 "fold:N",
                 title="검증 구간",
+                sort=["fold1", "fold2", "fold3", "fold4", "fold5"],
             ),
             y=alt.Y(
                 "R²:Q",
@@ -1207,14 +1224,27 @@ def show_model_analysis():
         use_container_width=True,
     )
 
+    # fold1의 R²도 분석 결과에서 읽기
+    fold1_r2 = walk_forward.loc[
+        walk_forward["fold"] == "fold1",
+        "R²",
+    ].iloc[0]
+
     st.error(
         "fold1은 2019년 데이터로 학습한 뒤 2020년을 예측하는 구간으로, "
-        "팬데믹에 따른 갑작스러운 수요 급락 때문에 R²가 -0.178까지 "
-        "하락했습니다."
+        "팬데믹에 따른 갑작스러운 수요 급락 때문에 "
+        f"R²가 {fold1_r2:.3f}까지 하락했습니다."
     )
 
+    # 이후 Fold의 R² 범위도 분석 결과에서 계산
+    later_folds = walk_forward.loc[
+        walk_forward["fold"] != "fold1",
+        "R²",
+    ]
+
     st.info(
-        "이후 fold에서는 R²가 0.914~0.969 수준으로 회복되었습니다. "
+        f"이후 fold에서는 R²가 {later_folds.min():.3f}~"
+        f"{later_folds.max():.3f} 수준으로 회복되었습니다. "
         "이는 과거 패턴이 반복되는 일반적인 시기에는 높은 예측력을 보이지만, "
         "팬데믹처럼 과거 데이터에 없던 급격한 구조 변화에서는 "
         "성능이 크게 떨어질 수 있음을 보여줍니다."
@@ -1287,3 +1317,38 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ============================================================
+# [구현 핵심]
+# ============================================================
+
+# 서울 지하철 이용량과 날씨 데이터를 활용하여
+# 이용 패턴, 강우 영향, 팬데믹 변화, 수요 예측 결과를 시각화함
+# Streamlit과 Altair를 사용하여 분석 결과를 탭별로 구성하고,
+# Random Forest의 예측 성능과 변수 중요도를 확인할 수 있도록 구현함
+#
+# 분석 스크립트에서 생성한 JSON 파일을 불러와
+# 랜덤 split과 시간순 split, Walk-forward 검증 결과를 표시함
+# 분석 결과와 대시보드에 표시되는 수치가 일치하도록 구성함
+#
+# [발견한 문제 및 수정]
+# 1. 승차·하차 합산 건수를 실제 이용자 수처럼 '명'으로 표시하고 있었음
+#    → 단위를 '건'으로 수정하고 이용량의 의미를 설명하는 문구를 추가함
+#
+# 2. 요일별 그래프와 팬데믹 국면별 그래프의 표시 순서가 일정하지 않았음
+#    → 월~일 순서와 팬데믹 국면의 시간 순서를 명시적으로 지정함
+#
+# 3. 팬데믹 시작 기준이 데이터 전처리 코드와 일치하지 않았음
+#    → 2020-02-01을 기준으로 통일하여 2020년 1월의 분류를 수정함
+#
+# 4. 검증 성능 수치가 코드에 직접 입력되어 있었음
+#    → JSON 파일에서 실제 분석 결과를 불러오도록 수정함
+#
+# 5. 랜덤 split의 성능을 시간순 split보다 우수하다고 단정할 가능성이 있었음
+#    → 테스트 기간이 다르다는 한계를 명시하고 해석 문구를 보완함
+#
+# [추후 보완 사항]
+# 1. 날씨 변수 제외 실험 결과를 추가하여 날씨의 실제 예측 기여도 시각화
+# 2. 연도·월 효과를 통제한 강우 영향 분석 결과 추가
+# 3. 사용자가 날짜와 날씨 조건을 입력하는 대화형 수요 예측 기능 추가

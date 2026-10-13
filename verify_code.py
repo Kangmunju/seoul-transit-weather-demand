@@ -1,11 +1,12 @@
 from pathlib import Path
 import json
+import argparse
 
 
 BASE_DIR = Path(__file__).resolve().parent
 
 
-# 프로젝트에 반드시 있어야 하는 핵심 파일
+# 프로젝트에 반드시 있어야 하는 핵심 소스 파일
 REQUIRED_FILES = [
     "README.md",
     "requirements.txt",
@@ -26,10 +27,19 @@ REQUIRED_FILES = [
     "reports/analysis_report.md",
     "reports/DATA_ACCESS.md",
     "reports/PITFALLS.md",
+    "dashboard/app.py",
+    "dashboard/make_dashboard_data.py",
+]
+
+
+# 실행 후 생성되거나 준비되어 있어야 하는 산출물
+GENERATED_FILES = [
     "data/seoul_transit.db",
     "models/metrics.json",
     "models/feature_importance.csv",
     "models/test_predictions.csv",
+    "models/leakage_results.json",
+    "dashboard/dashboard_data.csv",
 ]
 
 
@@ -51,7 +61,7 @@ def check_files(files):
     for file in files:
         path = BASE_DIR / file
 
-        if path.exists():
+        if path.is_file():
             print(f"[ok ] {file}")
         else:
             print(f"[FAIL] {file}")
@@ -63,7 +73,7 @@ def check_files(files):
 def check_metrics():
     path = BASE_DIR / "models" / "metrics.json"
 
-    if not path.exists():
+    if not path.is_file():
         print("[FAIL] models/metrics.json 없음")
         return False
 
@@ -91,20 +101,108 @@ def check_metrics():
     return True
 
 
+def check_leakage_results():
+    path = BASE_DIR / "models" / "leakage_results.json"
+
+    if not path.is_file():
+        print("[FAIL] models/leakage_results.json 없음")
+        return False
+
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            results = json.load(file)
+
+    except (json.JSONDecodeError, OSError) as error:
+        print(f"[FAIL] leakage_results.json 읽기 실패: {error}")
+        return False
+
+    required_keys = [
+        "split_comparison",
+        "walk_forward",
+    ]
+
+    missing = [key for key in required_keys if key not in results]
+
+    if missing:
+        print(f"[FAIL] 시계열 검증 결과 누락: {missing}")
+        return False
+
+    if not isinstance(results["split_comparison"], list):
+        print("[FAIL] split_comparison 형식 오류")
+        return False
+
+    if not isinstance(results["walk_forward"], list):
+        print("[FAIL] walk_forward 형식 오류")
+        return False
+
+    if len(results["split_comparison"]) != 2:
+        print("[FAIL] 랜덤/시간순 split 비교 결과 개수 오류")
+        return False
+
+    if len(results["walk_forward"]) != 5:
+        print("[FAIL] Walk-forward 검증 결과 개수 오류")
+        return False
+
+    print("[ok ] 시계열 검증 결과 확인")
+    return True
+
+
 def main():
+    parser = argparse.ArgumentParser(description="프로젝트 소스 및 실행 산출물 검증")
+
+    parser.add_argument(
+        "--after-run",
+        action="store_true",
+        help="전체 파이프라인 실행 후 원본 데이터와 산출물까지 검증",
+    )
+
+    args = parser.parse_args()
+
     rule("1. 핵심 프로젝트 파일 확인")
     missing_core = check_files(REQUIRED_FILES)
 
-    rule("2. 원본 데이터 확인")
-    missing_raw = check_files(RAW_FILES)
+    missing_raw = []
+    missing_generated = []
 
-    rule("3. 모델 결과 확인")
-    metrics_ok = check_metrics()
+    metrics_ok = True
+    leakage_ok = True
+
+    if args.after_run:
+        rule("2. 원본 데이터 확인")
+        missing_raw = check_files(RAW_FILES)
+
+        rule("3. 실행 산출물 확인")
+        missing_generated = check_files(GENERATED_FILES)
+
+        rule("4. 모델 성능 결과 확인")
+        metrics_ok = check_metrics()
+
+        rule("5. 시계열 검증 결과 확인")
+        leakage_ok = check_leakage_results()
+
+    else:
+        print(
+            "\n[info] 실행 전 검증 모드: 원본 데이터 및 생성 산출물 검사는 생략합니다."
+        )
 
     rule("최종 검증 결과")
 
-    if not missing_core and not missing_raw and metrics_ok:
-        print("[PASS] 프로젝트 핵심 파일과 산출물이 모두 정상적으로 존재함")
+    passed = (
+        not missing_core
+        and not missing_raw
+        and not missing_generated
+        and metrics_ok
+        and leakage_ok
+    )
+
+    if passed:
+        if args.after_run:
+            print(
+                "[PASS] 프로젝트 소스, 원본 데이터, "
+                "실행 산출물이 모두 정상적으로 존재함"
+            )
+        else:
+            print("[PASS] 프로젝트 핵심 소스 파일이 모두 존재함")
         return
 
     print("[FAIL] 프로젝트 검증 실패")
@@ -115,11 +213,41 @@ def main():
     if missing_raw:
         print(f"- 누락된 원본 데이터: {len(missing_raw)}개")
 
+    if missing_generated:
+        print(f"- 누락된 실행 산출물: {len(missing_generated)}개")
+
     if not metrics_ok:
         print("- 모델 성능 결과 확인 필요")
+
+    if not leakage_ok:
+        print("- 시계열 검증 결과 확인 필요")
 
     raise SystemExit(1)
 
 
 if __name__ == "__main__":
     main()
+
+
+# ============================================================
+# [구현 핵심]
+# ============================================================
+
+# 프로젝트 핵심 소스 파일과 실행 산출물의 존재 여부를 검증함
+# 실행 전에는 소스 파일만 검사하고,
+# 실행 후에는 원본 데이터, DB, 모델 결과, 분석 결과까지 확인하도록 구현함
+#
+# [발견한 문제 및 수정]
+# 1. 새로 클론한 프로젝트에서 생성 전 DB 파일을 필수로 요구했음
+#    → 실행 전과 실행 후 검증을 분리하여 불필요한 실패를 방지함
+#
+# 2. 파일 존재 여부만 확인하여 분석 결과의 누락을 구분하기 어려웠음
+#    → 모델 성능과 시계열 검증 JSON의 필수 항목 검사 추가
+#
+# 3. 피드백 9번에서 추가한 leakage_results.json이 검증 대상에 없었음
+#    → 실행 후 산출물 검사에 포함함
+#
+# [추후 보완 사항]
+# 1. CSV 및 DB 내부 데이터 건수와 날짜 범위 검증
+# 2. 원본 데이터의 연도별 누락 일수 및 중복 여부 검사
+# 3. 모델 결과와 대시보드 표시 수치의 일치 여부 자동 검증

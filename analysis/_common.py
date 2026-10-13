@@ -3,8 +3,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
+
 
 # 프로젝트 최상위 폴더
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,18 +19,6 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from clean import build_clean_data
-
-names = {f.name for f in fm.fontManager.ttflist}
-
-for cand in ["AppleGothic", "Malgun Gothic", "NanumGothic", "NanumBarunGothic"]:
-    if cand in names:
-        plt.rcParams["font.family"] = cand
-        break
-else:
-    print("[WARN] 한글 폰트를 찾지 못했습니다.")
-
-# 마이너스 기호 깨짐 방지
-plt.rcParams["axes.unicode_minus"] = False
 
 
 def load_merged():
@@ -79,3 +66,23 @@ def load_merged():
     merged, sw, rep = build_clean_data(subway, weather)
 
     return merged, sw, rep
+
+
+# ============================================================
+# [구현 핵심]
+# ============================================================
+
+# SQLite에서 지하철 이용량과 날씨 데이터를 불러오고,
+# clean.py의 공통 전처리 함수를 재사용하도록 구현함
+# 분석 파일마다 데이터 조회 및 정제 코드를 중복 작성하지 않도록 구성함
+#
+# [발견한 문제 및 수정]
+# 1. 실제로 그래프를 그리지 않는데 Matplotlib를 import하고 있었음
+#    → 불필요한 import와 한글 폰트 설정 코드를 제거함
+#
+# 2. requirements.txt에 없는 라이브러리 때문에 실행이 실패할 수 있었음
+#    → pandas와 표준 라이브러리만 사용하도록 의존성을 정리함
+#
+# [추후 보완 사항]
+# 1. DB 파일이 없을 때 원인을 명확하게 안내하는 예외 처리 추가
+# 2. 데이터 조회 결과의 필수 컬럼 및 결측 여부 검증

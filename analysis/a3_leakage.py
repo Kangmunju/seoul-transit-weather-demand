@@ -2,6 +2,8 @@
 # 랜덤하게 데이터 나누기 VS 데이터를 시간순으로 나누기
 # 평가가 어떻게 달라지는 지 확인
 
+import json
+from pathlib import Path
 
 import numpy as np
 
@@ -147,6 +149,7 @@ def main():
 
     maes = []
     r2s = []
+    walk_forward_results = []
 
     for k, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
         mae_k, r2_k, mape_k = fit_eval(
@@ -163,6 +166,17 @@ def main():
         maes.append(mae_k)
         r2s.append(r2_k)
 
+        walk_forward_results.append(
+            {
+                "fold": f"fold{k}",
+                "학습일수": int(len(train_idx)),
+                "테스트일수": int(len(test_idx)),
+                "MAE": float(mae_k),
+                "MAPE (%)": float(mape_k),
+                "R²": float(r2_k),
+            }
+        )
+
         print(
             f"fold{k}: "
             f"train {len(train_idx)}일 → "
@@ -175,6 +189,36 @@ def main():
     print(f"\n평균 MAE {np.mean(maes):,.0f} (±{np.std(maes):,.0f})")
 
     print(f"평균 R² {np.mean(r2s):.3f} (±{np.std(r2s):.3f})")
+
+    # 실제 분석 결과를 JSON으로 저장하여 대시보드에서 재사용
+    root = Path(__file__).resolve().parents[1]
+    output_path = root / "models" / "leakage_results.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    results = {
+        "split_comparison": [
+            {
+                "검증 방식": "랜덤 split",
+                "MAE": float(mae_r),
+                "MAPE (%)": float(mape_r),
+                "R²": float(r2_r),
+                "가장 가까운 학습 데이터": f"중앙값 {random_gap:.0f}일",
+            },
+            {
+                "검증 방식": "시간순 split",
+                "MAE": float(mae_t),
+                "MAPE (%)": float(mape_t),
+                "R²": float(r2_t),
+                "가장 가까운 학습 데이터": f"중앙값 {time_gap:.0f}일",
+            },
+        ],
+        "walk_forward": walk_forward_results,
+    }
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(results, file, ensure_ascii=False, indent=4)
+
+    print(f"\n분석 결과 저장 완료: {output_path}")
 
 
 if __name__ == "__main__":
@@ -201,34 +245,29 @@ if __name__ == "__main__":
 
 
 # ============================================================
+# [구현 핵심]
+# ============================================================
 
-# 같은 데이터, 같은 피처, 같은 RandomForest 모델을 사용
-# train/test split 방식만 바꿔 평가 결과가 어떻게 달라지는지 비교함
-
-# 랜덤 split은 시간 순서를 무시함
-# test 시점보다 미래의 데이터가 train에 포함될 가능성 존재
-# test 날짜와 매우 가까운 날짜가 train에 포함될 가능성 존재
-# 시간순 split은 과거로 학습하고 이후 미래를 테스트함
-# 실제 미래 수요 예측과 최대한 더 비슷한 평가 구조를 만들고자 하였음
-
-# 시간 split에서도 train/test 인덱스를 따로 저장함
-# 모델 평가뿐 아니라 nearest_gap()에서도 같은 인덱스를 사용
-# train과 test가 시간상 얼마나 떨어져 있는지 비교 가능
-
-# nearest_gap()으로 각 test 날짜와 가장 가까운 train 날짜의 거리를 계산
-# 랜덤 split에서는 train/test가 시간축에서 매우 가깝게 섞이는 것을 확인
-# 시간순 split에서는 두 구간이 시간적으로 분리되는 것을 확인
-# 단, 날짜가 가깝다는 사실 자체를 데이터 누수라고 단정하지는 않았음
-# 랜덤 split이 실제 미래 예측과 다른 평가 환경을 만든다는 점을 확인하는 용도로 사용함
-
-# 실제 비교에서는 랜덤 split이 모든 평가 지표에서 더 좋지는 않은 결과가 나왔음
-# 랜덤 split이 항상 성능을 높인다고 단정할 수는 없다는 결론을 내림
-# 시계열에서는 실제 예측 상황에 맞는 분할 방식을 사용하는 것이 더 중요하다고 판단함
-
-# 한 번의 시간순 split 결과만으로 모델을 판단하지 않으려고 함
-# TimeSeriesSplit으로 과거 -> 미래 순서를 유지한 walk-forward 검증을 5번 수행
-
-# fold마다 새로운 RandomForest를 학습해 시점별 성능을 비교하였음
-# 초기 fold에서는 성능이 크게 낮고 이후 fold에서는 비교적 안정적인 모습을 확인함
-# 단일 split의 높은 성능만으로 일반화 성능을 판단하기는 어려움
-# 여러 미래 시점에서 반복 검증하는 과정이 필요함을 확인하였음
+# 동일한 데이터, 피처, Random Forest 모델을 사용하여
+# 랜덤 split과 시간순 split의 예측 성능을 비교함
+# MAE, MAPE, R²와 학습·테스트 날짜 간 거리를 계산하여
+# 데이터 분할 방식에 따른 성능 차이와 시간적 누수 가능성을 확인함
+#
+# TimeSeriesSplit을 활용한 5-Fold Walk-forward 검증을 구현함
+# 팬데믹 초기 구간에서는 예측 성능이 크게 하락했으며,
+# 이후 구간에서는 비교적 높은 예측 성능을 보이는 것을 확인함
+#
+# [발견한 문제 및 수정]
+# 1. 검증 결과가 터미널에만 출력되어 대시보드에서 재사용하기 어려웠음
+#    → 성능 지표와 Fold별 결과를 JSON 파일로 저장하도록 수정함
+#
+# 2. 대시보드에 검증 수치를 직접 입력하면 분석 결과와 불일치할 수 있었음
+#    → models/leakage_results.json을 생성하여 실제 계산 결과를 공유하도록 수정함
+#
+# 3. 랜덤 split과 시간순 split의 테스트 기간이 서로 달랐음
+#    → 성능 차이를 분할 방식만의 효과로 단정할 수 없음을 확인함
+#
+# [추후 보완 사항]
+# 1. 동일한 테스트 기간을 기준으로 랜덤 split과 시간순 split 재비교
+# 2. 팬데믹처럼 급격한 구조 변화가 발생하는 구간의 예측 성능 개선
+# 3. Walk-forward 검증 결과를 활용한 모델 안정성 추가 분석
