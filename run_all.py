@@ -68,6 +68,15 @@ def validate_subway_files():
         print(f"[ok ] {path.name}: {result['rows']:,}행 / {result['days']}일")
 
 
+def validate_weather_data():
+    # 기존 CSV 또는 새로 수집한 CSV를 동일한 기준으로 검증
+    # import만으로 날씨 API를 호출하지 않도록
+    # collect_weather.py에서는 실행 코드를 main()으로 분리함
+    from src.collect_weather import validate_weather_file
+
+    validate_weather_file(WEATHER_FILE)
+
+
 def prepare_data():
     # 지하철 원본 파일이 모두 있는지 확인
     subway_ready = all(file.is_file() for file in SUBWAY_FILES)
@@ -99,12 +108,43 @@ def prepare_data():
         print("[check] 다운로드 결과 검증")
         validate_subway_files()
 
-    # 날씨 원본 파일 확인
-    if WEATHER_FILE.exists():
-        print("[skip] 날씨 원본 데이터가 이미 존재함")
+    # 날씨 원본 파일도 지하철 데이터와 동일하게 검증함
+    if WEATHER_FILE.is_file():
+        print("[check] 기존 날씨 원본 데이터 검증")
+
+        try:
+            validate_weather_data()
+
+        except (
+            ValueError,
+            OSError,
+        ) as error:
+            raise SystemExit(
+                "[FAIL] 기존 날씨 원본 데이터 검증 실패: "
+                f"{error}\n"
+                "불완전한 날씨 원본 파일을 확인한 후 "
+                "해당 파일을 복구해야 합니다."
+            ) from error
+
+        print("[skip] 날씨 원본 데이터가 이미 존재하며 검증 통과")
+
     else:
         print("[run ] 날씨 원본 데이터 수집")
         run_script("src/collect_weather.py")
+
+        # 새로 수집한 날씨 파일도 다시 검증
+        print("[check] 날씨 수집 결과 검증")
+
+        try:
+            validate_weather_data()
+
+        except (
+            ValueError,
+            OSError,
+        ) as error:
+            raise SystemExit(
+                f"[FAIL] 새로 수집한 날씨 데이터 검증 실패: {error}"
+            ) from error
 
 
 def main():
@@ -191,8 +231,11 @@ if __name__ == "__main__":
 # 각 단계에서 오류가 발생하면 실행을 중단하여
 # 불완전한 결과를 전체 실행 성공으로 표시하지 않도록 구성함
 # 기존 지하철 CSV를 재사용할 때 날짜 범위와 CSV 구조를 검증함
+# 기존 날씨 CSV도 날짜 범위·중복·누락을 검사한 후 재사용함
+# 새로 수집한 날씨 CSV도 저장 후 재검증함
 # 피드백 보강 분석 a6~a10도 전체 파이프라인에 포함함
-# argparse로 명령행 인자를 검사하여 도움말 요청과 잘못된 옵션을 안전하게 처리함
+# argparse로 명령행 인자를 검사하여 도움말 요청과
+# 잘못된 옵션을 안전하게 처리함
 #
 # [발견한 문제 및 수정]
 # 1. 전체 실행 과정에 대시보드 CSV 생성 단계가 빠져 있었음
@@ -215,7 +258,14 @@ if __name__ == "__main__":
 #
 # 7. --help 옵션을 입력해도 전체 파이프라인이 실행되는 문제가 있었음
 #    → argparse로 명령행 인자를 먼저 검사하도록 수정함
-#    → 도움말 요청 또는 잘못된 옵션 입력 시 DB 구축과 모델 학습을 실행하지 않음
+#    → 도움말 요청 또는 잘못된 옵션 입력 시
+#      DB 구축과 모델 학습을 실행하지 않음
+#
+# 8. 기존 날씨 CSV가 존재하기만 하면 검증 없이 재사용했음
+#    → validate_weather_file()로 날짜·컬럼·중복·누락 검사 추가
+#
+# 9. 날씨 데이터를 새로 수집한 뒤 재검증하지 않았음
+#    → 수집 완료 후 같은 검증 함수를 다시 실행하도록 수정함
 #
 # [추후 보완 사항]
 # 1. 빈 SQLite DB에서 최초 구축 시 데이터 건수와 중복 여부 검증
