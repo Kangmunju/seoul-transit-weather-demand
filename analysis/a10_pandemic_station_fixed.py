@@ -1,8 +1,10 @@
 # 팬데믹 회복률 분석: 전체 역과 고정 역 집합 비교
 # 연도별 역 구성 변화가 2019년 대비 이용량 변화율에 미치는 영향 검증
 
+import json
 import re
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
@@ -14,6 +16,13 @@ END_YEAR = 2024
 
 # 매년 전체 날짜 중 최소 95% 이상 관측된 역을 고정 역으로 선정
 MIN_COVERAGE = 0.95
+
+# Streamlit에서 사용할 분석 결과 저장 경로
+RESULT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "models"
+    / "pandemic_station_fixed_results.json"
+)
 
 
 def rule(title):
@@ -113,7 +122,8 @@ def make_station_coverage(station_daily):
     # 실제 이용량이 존재하는 날짜만 관측일로 인정
     valid = station_daily.dropna(subset=["ride"]).copy()
 
-    # 같은 역에 승하차 데이터가 함께 존재하거나 동일 날짜가 여러 행에 등장하더라도 날짜는 한 번만 계산함
+    # 같은 역에 승하차 데이터가 함께 존재하거나 동일 날짜가 여러 행에
+    # 등장하더라도 날짜는 한 번만 계산함
     # 역별 실제 관측일 수를 계산하기 위해 nunique()를 사용함
     coverage = valid.groupby(
         ["year", "line", "station"],
@@ -121,7 +131,6 @@ def make_station_coverage(station_daily):
     ).agg(observed_days=("date", "nunique"))
 
     coverage["calendar_days"] = coverage["year"].map(days_by_year)
-
     coverage["coverage"] = coverage["observed_days"] / coverage["calendar_days"]
 
     return coverage
@@ -131,16 +140,17 @@ def select_fixed_stations(coverage, min_coverage):
     # 각 연도에 관측률 기준을 만족하는 역만 선택
     # coverage["coverage"] : 각 역의 해당 관측률
     # >= min_coverage : 지정한 최소 관측률 이상인지 True/False로 확인
-    # 위 의 조건을 만족하는 coverage 행만 석택해 별도의 DataFrame으로 복사
+    # 위 조건을 만족하는 coverage 행만 선택해 별도의 DataFrame으로 복사
     # 이 단계에서는 연도별 관측률만 검사함
-    # 이후 groupby()와 nuniqe()를 이용하여 모든 연도에서 기준을 만족했는지 확인함
+    # 이후 groupby()와 nunique()를 이용하여 모든 연도에서 기준을
+    # 만족했는지 확인함
     eligible = coverage[coverage["coverage"] >= min_coverage].copy()
 
     # 2019~2024년 모든 연도에서 기준을 만족하는 역
     required_years = END_YEAR - START_YEAR + 1
 
     # (노선, 역명)별로 관측률 기준을 만족한 연도의 개수를 계산
-    # 고정 역 선정에는 서로 다른 연도가 몇 개인지 확인하는 nuniqe()가 적합하다고 판단함
+    # 고정 역 선정에는 서로 다른 연도가 몇 개인지 확인하는 nunique()가 적합함
     station_years = eligible.groupby(["line", "station"])["year"].nunique()
 
     fixed_keys = station_years[station_years == required_years].index
@@ -213,7 +223,6 @@ def calculate_comparison(station_daily, fixed_stations):
     base_fixed = result.loc[result["year"] == START_YEAR, "fixed_mean"].iloc[0]
 
     result["all_change_pct"] = (result["all_mean"] / base_all - 1) * 100
-
     result["fixed_change_pct"] = (result["fixed_mean"] / base_fixed - 1) * 100
 
     # 동일한 기준연도 대비 변화율의 차이(%p)
@@ -241,6 +250,7 @@ def main():
     # ------------------------------------------------------------
     # 1. 연도별 역 구성 확인
     # ------------------------------------------------------------
+
     rule("① 연도별 역 구성과 관측률")
 
     print(
@@ -253,7 +263,6 @@ def main():
 
     for year in range(START_YEAR, END_YEAR + 1):
         sub = station_daily[station_daily["year"] == year]
-
         cov = coverage[coverage["year"] == year]
 
         # 해당 연도에 등장한 서로 다른 역명의 개수를 계산
@@ -261,9 +270,7 @@ def main():
         # 서로 다른 노선에 같은 역명이 있으면 하나의 역명으로 계산됨
         # 따라서 아래의 (노선, 역명) 조합 수와는 결과가 다를 수 있음
         station_names = sub["station"].nunique()
-
         station_pairs = sub[["line", "station"]].drop_duplicates().shape[0]
-
         eligible_count = (cov["coverage"] >= MIN_COVERAGE).sum()
 
         print(f"{year:<8}{station_names:>12,}{station_pairs:>16,}{eligible_count:>18,}")
@@ -271,6 +278,7 @@ def main():
     # ------------------------------------------------------------
     # 2. 고정 역 집합 선정
     # ------------------------------------------------------------
+
     rule("② 고정 역 집합 선정")
 
     fixed_stations = select_fixed_stations(
@@ -286,6 +294,7 @@ def main():
     # ------------------------------------------------------------
     # 3. 기존 방식과 고정 역 방식 비교
     # ------------------------------------------------------------
+
     rule("③ 연도별 일평균 이용량 비교")
 
     result = calculate_comparison(
@@ -313,17 +322,17 @@ def main():
     # ------------------------------------------------------------
     # 4. 2024년 회복 수준 확인
     # ------------------------------------------------------------
+
     rule("⑤ 2024년 회복 수준 비교")
 
-    # 연도별 집계 결과에서 2024년은 한 행이므로 iloc[0]을 이용해 해당 행을 추출함
+    # 연도별 집계 결과에서 2024년은 한 행이므로 iloc[0]을 이용해
+    # 해당 행을 추출함
     # 앞에서는 특정 컬럼의 숫자 하나를 추출
     # 여기서는 2024년의 전체 비교 결과가 담긴 행(Series)을 가져옴
     target = result.loc[result["year"] == END_YEAR].iloc[0]
 
     print(f"전체 역 기준: {target['all_change_pct']:+.2f}%")
-
     print(f"고정 역 기준: {target['fixed_change_pct']:+.2f}%")
-
     print(f"두 방식의 차이: {target['difference_pp']:+.2f}%p")
 
     print(
@@ -335,9 +344,13 @@ def main():
     # ------------------------------------------------------------
     # 5. 관측률 기준 민감도 분석
     # ------------------------------------------------------------
+
     rule("⑥ 관측률 기준별 민감도 분석")
 
     print(f"{'기준':<12}{'고정 역 수':>14}{'2024년 변화율':>18}{'전체 대비 차이':>18}")
+
+    # Streamlit용 JSON에 저장할 민감도 분석 결과
+    sensitivity_results = []
 
     for threshold in [0.90, 0.95, 1.00]:
         selected = select_fixed_stations(
@@ -347,6 +360,16 @@ def main():
 
         if selected.empty:
             print(f"{threshold * 100:>3.0f}%{'분석 불가':>20}")
+
+            # 분석 불가 조건도 JSON에 기록하여 결과 누락과 구분
+            sensitivity_results.append(
+                {
+                    "threshold": float(threshold),
+                    "fixed_station_count": 0,
+                    "fixed_change_pct": None,
+                    "difference_pp": None,
+                }
+            )
             continue
 
         comparison = calculate_comparison(
@@ -363,6 +386,69 @@ def main():
             f"{last['difference_pp']:>+17.2f}%p"
         )
 
+        sensitivity_results.append(
+            {
+                "threshold": float(threshold),
+                "fixed_station_count": int(len(selected)),
+                "fixed_change_pct": float(last["fixed_change_pct"]),
+                "difference_pp": float(last["difference_pp"]),
+            }
+        )
+
+    # ------------------------------------------------------------
+    # 6. Streamlit용 분석 결과 저장
+    # ------------------------------------------------------------
+
+    rule("⑦ Streamlit용 분석 결과 저장")
+
+    # JSON에 저장할 수 있도록 pandas/numpy 값을 기본 자료형으로 변환
+    annual_results = []
+
+    for row in result.itertuples(index=False):
+        annual_results.append(
+            {
+                "year": int(row.year),
+                "all_mean": float(row.all_mean),
+                "fixed_mean": float(row.fixed_mean),
+                "all_change_pct": float(row.all_change_pct),
+                "fixed_change_pct": float(row.fixed_change_pct),
+                "difference_pp": float(row.difference_pp),
+            }
+        )
+
+    result_data = {
+        "experiment": "pandemic_station_fixed",
+        "analysis_period": {
+            "start_year": START_YEAR,
+            "end_year": END_YEAR,
+        },
+        "station_definition": "line + standardized_station",
+        "min_coverage": MIN_COVERAGE,
+        "fixed_station_count": int(len(fixed_stations)),
+        "annual_comparison": annual_results,
+        "recovery_2024": {
+            "all_change_pct": float(target["all_change_pct"]),
+            "fixed_change_pct": float(target["fixed_change_pct"]),
+            "difference_pp": float(target["difference_pp"]),
+        },
+        "sensitivity_analysis": sensitivity_results,
+    }
+
+    # models 폴더가 없으면 생성
+    RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    # 한글이 깨지지 않도록 UTF-8로 저장
+    with open(RESULT_PATH, "w", encoding="utf-8") as file:
+        json.dump(
+            result_data,
+            file,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+
+    print(f"분석 결과 저장 완료: {RESULT_PATH}")
+
 
 if __name__ == "__main__":
     main()
@@ -378,18 +464,27 @@ if __name__ == "__main__":
 # 4. 2019~2024년 모든 연도에서 동일한 역 집합을 사용함
 # 5. 전체 역과 고정 역의 일평균 이용량 및 2019년 대비 변화율을 비교함
 # 6. 관측률 90%, 95%, 100% 기준의 민감도 분석을 수행함
-#
+# 7. 연도별 비교, 2024년 회복률, 민감도 분석 결과를 JSON으로 저장함
+# 8. Streamlit에서 SQLite DB를 다시 조회하지 않고 결과를 사용할 수 있도록 구성함
+
 # [발견한 문제 및 수정]
 # 1. 기존 a5 분석은 날짜별 전체 이용량을 사용하여 역 구성 변화를 구분하지 못함
 #    → 역 단위 데이터를 다시 집계하여 고정 역 기준 결과를 별도로 계산함
-#
+
 # 2. 연도별로 등장한 역을 단순 교집합으로 선정하면 관측일이 적은 역도 포함됨
 #    → 연도별 관측률을 계산하여 일정 기준 이상인 역만 선정함
-#
+
 # 3. 서로 다른 노선에 같은 이름의 역이 존재할 수 있음
 #    → 역명만이 아닌 노선과 역명 조합을 기준으로 구분함
-#
+
+# 4. 기존 분석 결과가 콘솔에만 출력되어 Streamlit에서 직접 활용하기 어려웠음
+#    → models/pandemic_station_fixed_results.json 저장 기능을 추가함
+
+# 5. 관측률 기준에 따라 고정 역 집합이 비어 있을 수 있음
+#    → 분석 불가 결과를 null로 저장하여 정상적인 수치와 구분함
+
 # [추후 보완 사항]
 # 1. 역명 변경이나 노선 변경으로 동일 역이 다르게 식별되는 경우 검토
 # 2. 고정 역과 제외 역의 연도별 이용량 기여도 추가 분석
 # 3. 고정 역 기준 팬데믹 국면별 평일 이용량 및 주말/평일 비율 검증
+# 4. Streamlit 팬데믹 변화 메뉴에 전체 역·고정 역 비교 시각화 추가

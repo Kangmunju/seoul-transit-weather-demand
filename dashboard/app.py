@@ -7,6 +7,13 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
+from analysis_extensions import (
+    show_adjusted_rain,
+    show_workday_rain,
+    show_weather_ablation,
+    show_fixed_station_pandemic,
+)
+
 
 # 프로젝트 최상위 경로
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -1104,19 +1111,31 @@ def show_model_analysis():
 
     col1, col2, col3 = st.columns(3)
 
+    # 모델 재학습 후 TOP 10에 변수가 없어도 오류가 발생하지 않도록 함
+    def importance_label(feature):
+        matched = importance.loc[
+            importance["feature"] == feature,
+            "importance",
+        ]
+
+        if matched.empty:
+            return "해당 없음"
+
+        return f"{matched.iloc[0] * 100:.1f}%"
+
     col1.metric(
         "평일 여부",
-        f"{top10.loc[top10['feature'] == 'is_workday', '중요도 (%)'].iloc[0]:.1f}%",
+        importance_label("is_workday"),
     )
 
     col2.metric(
         "전날 이용량",
-        f"{top10.loc[top10['feature'] == 'lag_1', '중요도 (%)'].iloc[0]:.1f}%",
+        importance_label("lag_1"),
     )
 
     col3.metric(
         "팬데믹 급성기",
-        f"{top10.loc[top10['feature'] == 'pandemic_acute', '중요도 (%)'].iloc[0]:.1f}%",
+        importance_label("pandemic_acute"),
     )
 
     st.markdown(
@@ -1395,14 +1414,26 @@ def main():
     elif menu == "날씨 영향":
         show_weather_effect(data)
 
+        # a7: 강우 영향 통계적 보정
+        show_adjusted_rain()
+
+        # a9: 평일 강우 강도별 보정
+        show_workday_rain()
+
     elif menu == "팬데믹 변화":
         show_pandemic(data)
+
+        # a10: 전체 역과 고정 역 회복률 비교
+        show_fixed_station_pandemic()
 
     elif menu == "수요 예측":
         show_prediction(metrics)
 
     elif menu == "모델 분석":
         show_model_analysis()
+
+        # a6: 날씨 변수 포함/제외 실험
+        show_weather_ablation()
 
     else:
         st.info(f"'{menu}' 화면은 다음 단계에서 추가합니다.")

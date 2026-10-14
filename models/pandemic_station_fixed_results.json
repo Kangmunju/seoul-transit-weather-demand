@@ -1,0 +1,85 @@
+{
+  "experiment": "pandemic_station_fixed",
+  "analysis_period": {
+    "start_year": 2019,
+    "end_year": 2024
+  },
+  "station_definition": "line + standardized_station",
+  "min_coverage": 0.95,
+  "fixed_station_count": 576,
+  "annual_comparison": [
+    {
+      "year": 2019,
+      "all_mean": 14856092.860273972,
+      "fixed_mean": 14648333.287671233,
+      "all_change_pct": 0.0,
+      "fixed_change_pct": 0.0,
+      "difference_pp": 0.0
+    },
+    {
+      "year": 2020,
+      "all_mean": 10738400.24863388,
+      "fixed_mean": 10567607.464480875,
+      "all_change_pct": -27.71719758598866,
+      "fixed_change_pct": -27.857953140818413,
+      "difference_pp": -0.14075555482975233
+    },
+    {
+      "year": 2021,
+      "all_mean": 10982332.402739726,
+      "fixed_mean": 10749999.460273972,
+      "all_change_pct": -26.075230506218084,
+      "fixed_change_pct": -26.612814924673323,
+      "difference_pp": -0.5375844184552392
+    },
+    {
+      "year": 2022,
+      "all_mean": 12257348.104109589,
+      "fixed_mean": 12083824.873972602,
+      "all_change_pct": -17.492787508844753,
+      "fixed_change_pct": -17.50716865417753,
+      "difference_pp": -0.014381145332777123
+    },
+    {
+      "year": 2023,
+      "all_mean": 13406921.863013698,
+      "fixed_mean": 13162130.268493151,
+      "all_change_pct": -9.754724952853778,
+      "fixed_change_pct": -10.145884791063187,
+      "difference_pp": -0.39115983820940947
+    },
+    {
+      "year": 2024,
+      "all_mean": 13783570.912568307,
+      "fixed_mean": 13500399.204918033,
+      "all_change_pct": -7.219407941193268,
+      "fixed_change_pct": -7.836619089759234,
+      "difference_pp": -0.6172111485659659
+    }
+  ],
+  "recovery_2024": {
+    "all_change_pct": -7.219407941193268,
+    "fixed_change_pct": -7.836619089759234,
+    "difference_pp": -0.6172111485659659
+  },
+  "sensitivity_analysis": [
+    {
+      "threshold": 0.9,
+      "fixed_station_count": 576,
+      "fixed_change_pct": -7.836619089759234,
+      "difference_pp": -0.6172111485659659
+    },
+    {
+      "threshold": 0.95,
+      "fixed_station_count": 576,
+      "fixed_change_pct": -7.836619089759234,
+      "difference_pp": -0.6172111485659659
+    },
+    {
+      "threshold": 1.0,
+      "fixed_station_count": 572,
+      "fixed_change_pct": -7.835300716725568,
+      "difference_pp": -0.6158927755323003
+    }
+  ]
+}
