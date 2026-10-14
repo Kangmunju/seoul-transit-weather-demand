@@ -33,6 +33,7 @@ REQUIRED_FILES = [
     "reports/DATA_ACCESS.md",
     "reports/PITFALLS.md",
     "dashboard/app.py",
+    "dashboard/analysis_extensions.py",
     "dashboard/make_dashboard_data.py",
 ]
 
@@ -50,6 +51,10 @@ GENERATED_FILES = [
     "models/rain_adjusted_results.json",
     "models/fixed_test_split_results.json",
     "models/rain_workday_adjusted_results.json",
+    "models/pandemic_station_fixed_results.json",
+    "models/holiday_feature_comparison.json",
+    "models/holiday_feature_importance.csv",
+    "models/holiday_feature_predictions.csv",
     "dashboard/dashboard_data.csv",
 ]
 
@@ -159,16 +164,50 @@ def check_leakage_results():
 
 
 def check_analysis_results():
-    # a6~a9 분석에서 저장하는 JSON 결과 파일
-    # 각 파일의 존재 여부와 JSON 형식 및 비어 있지 않은 구조를 확인함
-    # a10은 별도의 결과 파일을 저장하지 않으므로 검사 대상에서 제외함
+    # a6~a10 및 휴일 피처 비교에서 저장하는 JSON 결과 파일
+    # 각 파일의 존재 여부, JSON 형식 및 핵심 항목을 확인함
 
     analysis_results = [
         "models/weather_ablation_results.json",
         "models/rain_adjusted_results.json",
         "models/fixed_test_split_results.json",
         "models/rain_workday_adjusted_results.json",
+        "models/pandemic_station_fixed_results.json",
+        "models/holiday_feature_comparison.json",
     ]
+
+    # 분석별로 반드시 포함되어야 하는 핵심 결과 항목
+    required_keys = {
+        "models/weather_ablation_results.json": [
+            "split_comparison",
+            "heavy_rain",
+            "walk_forward",
+        ],
+        "models/rain_adjusted_results.json": [
+            "simple_comparison",
+            "matched_comparison",
+            "adjusted_regression",
+        ],
+        "models/fixed_test_split_results.json": [
+            "time_split",
+            "mixed_split",
+        ],
+        "models/rain_workday_adjusted_results.json": [
+            "rain_comparison",
+            "intensity_comparisons",
+            "bootstrap",
+        ],
+        "models/pandemic_station_fixed_results.json": [
+            "annual_comparison",
+            "recovery_2024",
+            "sensitivity_analysis",
+        ],
+        "models/holiday_feature_comparison.json": [
+            "old_model",
+            "new_model",
+            "added_features",
+        ],
+    }
 
     all_ok = True
 
@@ -198,6 +237,39 @@ def check_analysis_results():
             print(f"[FAIL] {filename} 분석 결과가 비어 있음")
             all_ok = False
             continue
+
+        # 파일별 핵심 결과가 누락되거나 null인지 확인함
+        missing_keys = [
+            key
+            for key in required_keys[filename]
+            if key not in results or results[key] is None
+        ]
+
+        if missing_keys:
+            print(f"[FAIL] {filename} 필수 항목 누락: {missing_keys}")
+            all_ok = False
+            continue
+
+        # a10은 분석 대상 연도가 모두 포함되었는지 추가 확인함
+        if filename == "models/pandemic_station_fixed_results.json":
+            annual_comparison = results["annual_comparison"]
+
+            if not isinstance(annual_comparison, list):
+                print("[FAIL] a10 연도별 비교 결과 형식 오류")
+                all_ok = False
+                continue
+
+            if not all(isinstance(item, dict) for item in annual_comparison):
+                print("[FAIL] a10 연도별 비교 항목 형식 오류")
+                all_ok = False
+                continue
+
+            years = {item.get("year") for item in annual_comparison}
+
+            if years != set(range(2019, 2025)):
+                print("[FAIL] a10 연도별 비교에 2019~2024년 데이터 누락")
+                all_ok = False
+                continue
 
         print(f"[ok ] {filename} 분석 결과 확인")
 
@@ -265,6 +337,7 @@ def main():
             )
         else:
             print("[PASS] 프로젝트 핵심 소스 파일이 모두 존재함")
+
         return
 
     print("[FAIL] 프로젝트 검증 실패")
@@ -301,7 +374,8 @@ if __name__ == "__main__":
 # 프로젝트 핵심 소스 파일과 실행 산출물의 존재 여부를 검증함
 # 실행 전에는 소스 파일만 검사하고,
 # 실행 후에는 원본 데이터, DB, 모델 결과, 분석 결과까지 확인하도록 구현함
-# 피드백 보강 분석 a6~a10의 소스 파일과 a6~a9의 결과 파일도 검증함
+# 피드백 보강 분석 a6~a10과 휴일 피처 결과 파일까지 검증함
+# a10은 2019~2024년의 연도별 결과가 모두 존재하는지 추가 확인함
 #
 # [발견한 문제 및 수정]
 # 1. 새로 클론한 프로젝트에서 생성 전 DB 파일을 필수로 요구했음
@@ -320,8 +394,17 @@ if __name__ == "__main__":
 #    → GENERATED_FILES에 결과 JSON 및 CSV를 추가함
 #    → JSON 파일의 형식과 비어 있지 않은 구조를 검사하는 함수 추가
 #
+# 6. a10 JSON과 휴일 피처 산출물이 검증 대상에서 누락되어 있었음
+#    → GENERATED_FILES 및 JSON 필수 항목 검사에 추가함
+#
+# 7. 대시보드 확장 모듈이 핵심 소스 파일 검사에서 누락되어 있었음
+#    → dashboard/analysis_extensions.py를 REQUIRED_FILES에 추가함
+#
+# 8. a10 결과 파일의 존재 여부만으로는 분석 연도 누락을 확인할 수 없었음
+#    → annual_comparison에 2019~2024년이 모두 포함되었는지 검사함
+#
 # [추후 보완 사항]
 # 1. CSV 및 DB 내부 데이터 건수와 날짜 범위 검증
 # 2. 원본 데이터의 연도별 누락 일수 및 중복 여부 검사
-# 3. 모델 결과와 대시보드 표시 수치의 일치 여부 자동 검증
-# 4. 피드백 보강 분석 JSON 내부의 세부 지표 및 값 범위 검증
+# 3. Streamlit 렌더링 결과와 JSON 표시 수치의 일치 여부 자동 검증
+# 4. 분석 JSON 내부의 세부 지표 및 값 범위 검증
