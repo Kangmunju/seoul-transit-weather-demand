@@ -24,6 +24,11 @@ REQUIRED_FILES = [
     "analysis/a3_leakage.py",
     "analysis/a4_preprocess.py",
     "analysis/a5_pandemic.py",
+    "analysis/a6_weather_ablation.py",
+    "analysis/a7_rain_adjusted.py",
+    "analysis/a8_fixed_test_split.py",
+    "analysis/a9_rain_workday_adjusted.py",
+    "analysis/a10_pandemic_station_fixed.py",
     "reports/analysis_report.md",
     "reports/DATA_ACCESS.md",
     "reports/PITFALLS.md",
@@ -39,6 +44,12 @@ GENERATED_FILES = [
     "models/feature_importance.csv",
     "models/test_predictions.csv",
     "models/leakage_results.json",
+    "models/weather_ablation_results.json",
+    "models/weather_ablation_folds.csv",
+    "models/weather_permutation_importance.csv",
+    "models/rain_adjusted_results.json",
+    "models/fixed_test_split_results.json",
+    "models/rain_workday_adjusted_results.json",
     "dashboard/dashboard_data.csv",
 ]
 
@@ -147,6 +158,52 @@ def check_leakage_results():
     return True
 
 
+def check_analysis_results():
+    # a6~a9 분석에서 저장하는 JSON 결과 파일
+    # 각 파일의 존재 여부와 JSON 형식 및 비어 있지 않은 구조를 확인함
+    # a10은 별도의 결과 파일을 저장하지 않으므로 검사 대상에서 제외함
+
+    analysis_results = [
+        "models/weather_ablation_results.json",
+        "models/rain_adjusted_results.json",
+        "models/fixed_test_split_results.json",
+        "models/rain_workday_adjusted_results.json",
+    ]
+
+    all_ok = True
+
+    for filename in analysis_results:
+        path = BASE_DIR / filename
+
+        if not path.is_file():
+            print(f"[FAIL] {filename} 없음")
+            all_ok = False
+            continue
+
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                results = json.load(file)
+
+        except (json.JSONDecodeError, OSError) as error:
+            print(f"[FAIL] {filename} 읽기 실패: {error}")
+            all_ok = False
+            continue
+
+        if not isinstance(results, dict):
+            print(f"[FAIL] {filename} 최상위 JSON 형식 오류")
+            all_ok = False
+            continue
+
+        if not results:
+            print(f"[FAIL] {filename} 분석 결과가 비어 있음")
+            all_ok = False
+            continue
+
+        print(f"[ok ] {filename} 분석 결과 확인")
+
+    return all_ok
+
+
 def main():
     parser = argparse.ArgumentParser(description="프로젝트 소스 및 실행 산출물 검증")
 
@@ -166,6 +223,7 @@ def main():
 
     metrics_ok = True
     leakage_ok = True
+    analysis_ok = True
 
     if args.after_run:
         rule("2. 원본 데이터 확인")
@@ -180,6 +238,9 @@ def main():
         rule("5. 시계열 검증 결과 확인")
         leakage_ok = check_leakage_results()
 
+        rule("6. 피드백 보강 분석 결과 확인")
+        analysis_ok = check_analysis_results()
+
     else:
         print(
             "\n[info] 실행 전 검증 모드: 원본 데이터 및 생성 산출물 검사는 생략합니다."
@@ -193,6 +254,7 @@ def main():
         and not missing_generated
         and metrics_ok
         and leakage_ok
+        and analysis_ok
     )
 
     if passed:
@@ -222,6 +284,9 @@ def main():
     if not leakage_ok:
         print("- 시계열 검증 결과 확인 필요")
 
+    if not analysis_ok:
+        print("- 피드백 보강 분석 결과 확인 필요")
+
     raise SystemExit(1)
 
 
@@ -236,6 +301,7 @@ if __name__ == "__main__":
 # 프로젝트 핵심 소스 파일과 실행 산출물의 존재 여부를 검증함
 # 실행 전에는 소스 파일만 검사하고,
 # 실행 후에는 원본 데이터, DB, 모델 결과, 분석 결과까지 확인하도록 구현함
+# 피드백 보강 분석 a6~a10의 소스 파일과 a6~a9의 결과 파일도 검증함
 #
 # [발견한 문제 및 수정]
 # 1. 새로 클론한 프로젝트에서 생성 전 DB 파일을 필수로 요구했음
@@ -247,7 +313,15 @@ if __name__ == "__main__":
 # 3. 피드백 9번에서 추가한 leakage_results.json이 검증 대상에 없었음
 #    → 실행 후 산출물 검사에 포함함
 #
+# 4. 피드백 보강 분석 a6~a10이 핵심 파일 검사에서 누락되어 있었음
+#    → REQUIRED_FILES에 a6~a10을 추가함
+#
+# 5. a6~a9 분석 결과물이 실행 후 검증 대상에 포함되지 않았음
+#    → GENERATED_FILES에 결과 JSON 및 CSV를 추가함
+#    → JSON 파일의 형식과 비어 있지 않은 구조를 검사하는 함수 추가
+#
 # [추후 보완 사항]
 # 1. CSV 및 DB 내부 데이터 건수와 날짜 범위 검증
 # 2. 원본 데이터의 연도별 누락 일수 및 중복 여부 검사
 # 3. 모델 결과와 대시보드 표시 수치의 일치 여부 자동 검증
+# 4. 피드백 보강 분석 JSON 내부의 세부 지표 및 값 범위 검증
