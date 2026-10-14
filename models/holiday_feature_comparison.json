@@ -1,0 +1,88 @@
+{
+  "experiment": "holiday_feature_comparison",
+  "seed": 42,
+  "train_ratio": 0.75,
+  "test_ratio": 0.25,
+  "train_start": "2019-01-08",
+  "train_end": "2023-07-03",
+  "test_start": "2023-07-04",
+  "test_end": "2024-12-31",
+  "train_days": 1638,
+  "test_days": 547,
+  "old_feature_count": 25,
+  "new_feature_count": 28,
+  "added_features": [
+    "is_labor_day",
+    "is_day_after_holiday",
+    "holiday_streak_length"
+  ],
+  "old_model": {
+    "overall": {
+      "MAE": 347269.3,
+      "RMSE": 545907.3,
+      "MAPE_%": 2.99,
+      "R2": 0.9649
+    },
+    "by_day_type": {
+      "workday": {
+        "days": 368,
+        "MAPE_%": 1.95
+      },
+      "weekend": {
+        "days": 152,
+        "MAPE_%": 3.61
+      },
+      "holiday": {
+        "days": 27,
+        "MAPE_%": 13.6
+      },
+      "labor_day": {
+        "days": 1,
+        "MAPE_%": 43.08
+      },
+      "day_after_holiday": {
+        "days": 180,
+        "MAPE_%": 4.13
+      }
+    }
+  },
+  "new_model": {
+    "overall": {
+      "MAE": 337830.5,
+      "RMSE": 498488.3,
+      "MAPE_%": 2.89,
+      "R2": 0.9707
+    },
+    "by_day_type": {
+      "workday": {
+        "days": 368,
+        "MAPE_%": 1.9
+      },
+      "weekend": {
+        "days": 152,
+        "MAPE_%": 3.5
+      },
+      "holiday": {
+        "days": 27,
+        "MAPE_%": 12.87
+      },
+      "labor_day": {
+        "days": 1,
+        "MAPE_%": 16.87
+      },
+      "day_after_holiday": {
+        "days": 180,
+        "MAPE_%": 4.1
+      }
+    }
+  },
+  "MAPE_improvement_pp": 0.1,
+  "labor_day_2024": {
+    "date": "2024-05-01",
+    "actual": 11868225.0,
+    "old_prediction": 16981073.0,
+    "new_prediction": 13870908.9,
+    "old_APE_%": 43.08,
+    "new_APE_%": 16.87
+  }
+}

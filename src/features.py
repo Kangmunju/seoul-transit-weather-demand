@@ -32,6 +32,15 @@ CALENDAR_FEATURES = [
 ]
 
 
+# 피드백 8번: 추가 휴일 관련 피처
+# 기존 모델과 비교할 수 있도록 별도 목록으로 관리
+HOLIDAY_FEATURES = [
+    "is_labor_day",
+    "is_day_after_holiday",
+    "holiday_streak_length",
+]
+
+
 # 과거 이용객 수를 이용해서 만든 시계열 피처
 TIME_FEATURES = [
     "lag_1",
@@ -86,9 +95,14 @@ def build(df: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def feature_columns(include_pandemic=True):
+def feature_columns(include_pandemic=True, include_holiday_features=False):
     # 기본으로 날씨 + 달력 + 시계열 피처를 사용
     features = WEATHER_FEATURES + CALENDAR_FEATURES + TIME_FEATURES
+
+    # 피드백 8번: 휴일 보강 피처를 선택적으로 추가
+    # False이면 기존 모델과 동일한 피처 목록을 사용함
+    if include_holiday_features:
+        features = features + HOLIDAY_FEATURES
 
     # 여러 연도의 데이터를 사용할 때만 팬데믹 피처 추가
     if include_pandemic:
@@ -97,7 +111,7 @@ def feature_columns(include_pandemic=True):
     return features
 
 
-# 실제 확인 결과
+# 실제 확인 결과(기존 모델 기준)
 # 피처 생성 전: 2192
 # 피처 생성 후: 2192
 # lag_7 결측: 7
@@ -106,21 +120,29 @@ def feature_columns(include_pandemic=True):
 
 
 # ============================================================
+# [구현 핵심]
+# ============================================================
 
-# 지하철 수요 데이터는 날짜순으로 먼저 정렬한 뒤 시계열 피처를 만듦
-
-# lag_1 = 어제 이용객 수
-# lag_7 = 지난주 같은 요일의 이용객 수
-
-# 오늘 값을 포함하면 예측할 값을 미리 보는 데이터 누수가 생길 가능성이 있다고 판단하였음
-# rolling 피처의 오늘 값을 바로 사용하지 않고 shift(1)를 먼저 적용해 어제까지의 데이터만 이용하는 것으로 해결함
-
-# roll7_mean = 최근 7일의 평균
-# roll7_std = 최근 7일의 변동 정도
-# roll28_mean = 최근 한달 정도의 수요 흐름
-
-# 0~6의 단순 숫자로만 요일을 보면 선형 모델이 크기 차이로 오해할 가능성이 있다고 판단하였음
-# dow_sin, dow_cos를 추가해 요일의 순환 구조를 함께 표현해 해결함
-
-# feature_columns()에 날씨, 달력, 시계열 피처를 한꺼번에 모아 두었음
-# 다년 데이터일 경우 팬데믹 급성기와 회복기 피처도 추가하도록 함
+# 지하철 수요 데이터는 날짜순으로 정렬한 뒤 시계열 피처를 생성함
+# lag_1과 lag_7로 전날 및 지난주 같은 요일의 이용량을 반영함
+# rolling 피처는 shift(1)를 적용해 예측 당일 이용량이 포함되지 않도록 함
+# roll7_mean, roll7_std, roll28_mean으로 최근 수요 흐름과 변동성을 표현함
+# dow_sin, dow_cos를 추가하여 요일의 순환 구조를 표현함
+# 날씨, 달력, 시계열, 팬데믹 피처를 그룹별로 관리함
+# 휴일 보강 피처 3개를 별도 목록으로 관리하고 선택적으로 사용하도록 구성함
+#
+# [발견한 문제 및 수정]
+# 1. 기존 달력 피처에는 근로자의 날과 연속 휴일 정보가 없었음
+#    → HOLIDAY_FEATURES에 신규 휴일 피처 3개를 추가함
+#
+# 2. 신규 휴일 피처를 기본 목록에 바로 추가하면 기존 모델과 비교하기 어려움
+#    → feature_columns()에 include_holiday_features 옵션을 추가함
+#    → False는 기존 피처, True는 휴일 보강 피처까지 포함하도록 구현함
+#
+# 3. 시계열 피처 생성 시 예측 당일 이용량이 포함될 가능성이 있었음
+#    → 기존 shift(1) 적용 방식을 유지하여 데이터 누수를 방지함
+#
+# [추후 보완 사항]
+# 1. train.py에서 기존 피처와 휴일 보강 피처의 모델 성능 비교
+# 2. 평일·주말·공휴일별 MAPE와 근로자의 날 예측 오차 확인
+# 3. 휴일 피처별 중요도와 실제 성능 개선 여부 검증

@@ -3,6 +3,7 @@ import re
 import numpy as np
 import pandas as pd
 
+
 KR_HOLIDAYS = {
     # 2019
     "2019-01-01",
@@ -119,10 +120,13 @@ KR_HOLIDAYS = {
     "2024-10-09",
     "2024-12-25",
 }
-# 근로자의 날(5월 1일) 제외함
-# 이후 작업을 진행하면서 공휴일 수를 실제와 대조할 예정임
+
+# 근로자의 날(5월 1일)은 기존 공휴일 목록에서 제외함
+# 공휴일과 성격이 다르므로 별도 is_labor_day 피처로 관리
 # 2019~2024 공휴일, 대체 공휴일, 선거일, 임시 공휴일 기준으로 구성
-# 공휴일: 108 주말: 626 평일: 1487
+# 기존 집계 기준: 공휴일 108일, 주말 626일, 평일 1,487일
+# 위 집계는 기존 공휴일·요일 분류 기준이며 신규 휴일 피처와 구분함
+
 
 PANDEMIC_START = "2020-02-01"  # 국내 확산·수요 급감 시작
 PANDEMIC_ACUTE_END = "2022-04-17"  # 사회적 거리두기 전면 해제 직전
@@ -246,6 +250,13 @@ def merge_subway_weather(subway_daily, weather_daily, log):
 def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
+    # 날짜 타입을 확인하고 날짜순으로 정렬
+    # 달력 피처는 실제 날짜를 기준으로 계산함
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    if df["date"].isna().any():
+        raise ValueError("달력 피처 생성 중 날짜 결측값이 발견되었습니다.")
+
     # 요일 만들기: 월요일=0 ~ 일요일=6
     df["dow"] = df["date"].dt.dayofweek
 
@@ -256,8 +267,81 @@ def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
     ds = df["date"].dt.strftime("%Y-%m-%d")
     df["is_holiday"] = ds.isin(KR_HOLIDAYS).astype(int)
 
+    # 근로자의 날은 법정 공휴일과 구분해 별도 피처로 관리
+    # 매년 5월 1일이면 1, 나머지 날짜는 0
+    df["is_labor_day"] = ((df["date"].dt.month == 5) & (df["date"].dt.day == 1)).astype(
+        int
+    )
+
     # 주말도 아니고 공휴일도 아니면 평일
+    # 기존 is_workday 정의는 유지함
+    # 근로자의 날은 별도 피처이므로 이 계산에는 포함하지 않음
     df["is_workday"] = ((df["is_weekend"] == 0) & (df["is_holiday"] == 0)).astype(int)
+
+    # --------------------------------------------------------
+    # 휴일 다음 날과 연속 휴일 길이 계산
+    # --------------------------------------------------------
+
+    # 기존 is_holiday는 공휴일만 의미함
+    # 신규 휴일 관련 피처에서는 주말·공휴일·근로자의 날을 함께 고려함
+    # 따라서 기존 요일/공휴일 분류와 신규 휴일 피처의 기준을 구분함
+
+    # 분석 시작일과 종료일의 바깥쪽 날짜도 확인
+    # 첫날 또는 마지막 날이 연속 휴일 중간에 위치할 수 있기 때문임
+    start = df["date"].min().normalize() - pd.Timedelta(days=7)
+    end = df["date"].max().normalize() + pd.Timedelta(days=7)
+
+    calendar_dates = pd.date_range(start=start, end=end)
+
+    # 휴일 성격의 날짜를 모아 두는 집합
+    holiday_dates = set()
+
+    for date in calendar_dates:
+        date_str = date.strftime("%Y-%m-%d")
+
+        is_weekend = date.dayofweek >= 5
+        is_public_holiday = date_str in KR_HOLIDAYS
+        is_labor_day = date.month == 5 and date.day == 1
+
+        if is_weekend or is_public_holiday or is_labor_day:
+            holiday_dates.add(date)
+
+    # 바로 전날이 주말·공휴일·근로자의 날이면 1
+    # 단순 shift(1)는 중간 날짜가 누락되면 잘못 계산될 수 있으므로
+    # 실제 날짜에서 하루를 빼서 휴일 여부를 확인함
+    previous_dates = df["date"].dt.normalize() - pd.Timedelta(days=1)
+
+    df["is_day_after_holiday"] = previous_dates.isin(holiday_dates).astype(int)
+
+    # 연속 휴일 구간별 길이를 저장할 딕셔너리
+    # 예: 토요일~일요일이 연속 휴일이면 두 날짜 모두 2
+    # 예: 금요일 공휴일~일요일이면 세 날짜 모두 3
+    # 휴일이 아닌 날짜는 0
+    streak_lengths = {}
+
+    for date in calendar_dates:
+        if date not in holiday_dates:
+            continue
+
+        # 전날도 휴일이면 이미 앞에서 시작한 연속 구간에 속함
+        if date - pd.Timedelta(days=1) in holiday_dates:
+            continue
+
+        streak = []
+        current = date
+
+        # 휴일이 연속되는 동안 날짜를 수집
+        while current in holiday_dates:
+            streak.append(current)
+            current += pd.Timedelta(days=1)
+
+        # 해당 연속 휴일 구간의 모든 날짜에 같은 길이 부여
+        for holiday_date in streak:
+            streak_lengths[holiday_date] = len(streak)
+
+    df["holiday_streak_length"] = (
+        df["date"].dt.normalize().map(streak_lengths).fillna(0).astype(int)
+    )
 
     # 월과 연도
     df["month"] = df["date"].dt.month
@@ -273,6 +357,7 @@ def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
     df["pandemic_recovery"] = ((d >= PANDEMIC_ACUTE_END) & (d < PANDEMIC_END)).astype(
         int
     )
+
     # 팬데믹을 하나로 묶지 않고 acute와 recovery로 나눔
     # 급격히 이용량이 떨어진 시기와 회복하는 시기를 모델이 구분하도록 구현함
 
@@ -298,6 +383,7 @@ def build_clean_data(subway, weather):
     merged = merge_subway_weather(subway_daily, weather_daily, log)
 
     # 7. 요일, 공휴일, 평일, 팬데믹 구간 추가
+    # 근로자의 날, 휴일 다음 날, 연속 휴일 길이도 함께 생성
     merged = add_calendar(merged)
     merged = log("7. 달력 파생", merged)
 
@@ -308,25 +394,35 @@ def build_clean_data(subway, weather):
 
 
 # ============================================================
+# [구현 핵심]
+# ============================================================
 
-# 지하철 데이터의 날짜와 이용객 수 타입을 맞추고 역명 정리
-# total이 없거나 0 이하인 값은 삭제하지 않고 NaN으로 바꿔 처리함
-# 실제 데이터에서 이상치 6,764건을 확인함
-
-# 승차와 하차로 나뉜 데이터를 날짜/노선/역 기준 1행으로 합침
-# 승차 + 하차를 계산해 총 이용객 수 ride를 만듦
-# 이후 역별 데이터를 날짜별로 합쳐 서울 전체의 일별 이용개 수로 만들었음
-
-# 날씨 데이터에서는 강수량과 강우량을 이용해 눈으로 인한 강수량을 구함
-# 비 온 날, 강수 있는 날, 호우 온 날을 구분하는 변수를 만들었음
-
-# 지하철과 날씨 데이터는 date를 기준으로 inner join함
-# 결합 후 2,192일이 그대로 유지되는 것을 확인함
-
-# 요일, 주말, 공휴일, 평일 여부와 연도, 월을 추가
-# 팬데믹 급성기와 회복기를 구분해 이후 모델에서 따로 사용할 수 있게 작업함
-
-# StepLog로 각 전처리 단계의 행 수 변화를 기록함
-# 실제 실행 결과
-# 2,638,670행 -> 1,319,335행 -> 2,192행
-# 최종 데이터는 2019~2024년 총 2,192일로 확인함
+# 지하철 데이터의 날짜와 이용량 타입을 변환하고 역명을 표준화함
+# 이용량이 없거나 0 이하인 값은 행을 삭제하지 않고 NaN으로 처리함
+# 승차·하차 데이터를 날짜·노선·역 기준으로 결합한 뒤 일별 이용량을 집계함
+# 지하철과 날씨 데이터를 날짜 기준으로 결합하고 강수 파생변수를 생성함
+# 요일, 주말, 공휴일, 평일 여부와 팬데믹 급성기·회복기 피처를 생성함
+# 근로자의 날, 휴일 다음 날, 연속 휴일 길이 피처를 추가함
+# StepLog를 이용하여 전처리 단계별 행 수 변화를 기록함
+#
+# [발견한 문제 및 수정]
+# 1. 기존 공휴일 목록에 근로자의 날(5월 1일)이 포함되지 않았음
+#    → 기존 공휴일 분류를 유지하면서 is_labor_day 피처를 별도로 추가함
+#
+# 2. 휴일 직후의 수요 특성을 나타내는 피처가 없었음
+#    → 전날이 주말·공휴일·근로자의 날인지 확인하는 is_day_after_holiday를 추가함
+#    → 데이터 행 순서가 아닌 실제 날짜를 기준으로 계산하도록 구현함
+#
+# 3. 기존 공휴일 여부만으로는 연속 휴일의 길이를 구분할 수 없었음
+#    → 주말·공휴일·근로자의 날이 연속되는 기간을 계산함
+#    → 해당 휴일 구간의 길이를 holiday_streak_length에 저장함
+#
+# 4. 신규 휴일 피처 추가로 기존 평일·공휴일 분류가 달라질 가능성이 있었음
+#    → is_holiday와 is_workday의 기존 정의를 유지함
+#    → 신규 휴일 피처는 기존 달력 피처와 별도로 생성함
+#
+# [추후 보완 사항]
+# 1. features.py에 신규 휴일 피처를 연결하고 기존 모델과 성능 비교
+# 2. 평일·주말·공휴일별 MAPE 및 2024-05-01 예측 오차 검증
+# 3. 명절 연휴와 일반 주말을 구분하는 전용 피처 검토
+# 4. 공휴일 목록의 정확성과 임시 공휴일 반영 여부 추가 검증
