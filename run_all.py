@@ -131,15 +131,34 @@ def main():
     rule("8. 팬데믹 구조 변화 분석")
     run_script("analysis/a5_pandemic.py")
 
-    rule("9. 대시보드 데이터 생성")
+    # 기존 a1~a5 분석에 이어 피드백 보강 분석을 실행
+    # 각 분석 스크립트가 오류 없이 끝나야 다음 단계로 진행함
+
+    rule("9. 날씨 변수 기여도 및 Walk-forward 검증")
+    run_script("analysis/a6_weather_ablation.py")
+
+    rule("10. 강우 효과 보정 분석")
+    run_script("analysis/a7_rain_adjusted.py")
+
+    rule("11. 동일 테스트 기간 데이터 분할 비교")
+    run_script("analysis/a8_fixed_test_split.py")
+
+    rule("12. 평일 기준 강우 효과 보정 분석")
+    run_script("analysis/a9_rain_workday_adjusted.py")
+
+    rule("13. 고정 역 집합 기준 팬데믹 회복률 검증")
+    run_script("analysis/a10_pandemic_station_fixed.py")
+
+    rule("14. 대시보드 데이터 생성")
     run_script("dashboard/make_dashboard_data.py")
 
-    rule("10. 전체 실행 결과 검증")
+    rule("15. 전체 실행 결과 검증")
     run_script("verify_code.py", "--after-run")
 
     rule("전체 실행 완료")
     print(
-        "[ok ] 데이터 준비 → DB → 모델 → 분석 → 대시보드 데이터 → 검증 전체 과정 완료"
+        "[ok ] 데이터 준비 → DB → 모델 → 분석(a1~a10) "
+        "→ 대시보드 데이터 → 검증 전체 과정 완료"
     )
 
 
@@ -156,6 +175,7 @@ if __name__ == "__main__":
 # 각 단계에서 오류가 발생하면 실행을 중단하여
 # 불완전한 결과를 전체 실행 성공으로 표시하지 않도록 구성함
 # 기존 지하철 CSV를 재사용할 때 날짜 범위와 CSV 구조를 검증함
+# 피드백 보강 분석 a6~a10도 전체 파이프라인에 포함함
 #
 # [발견한 문제 및 수정]
 # 1. 전체 실행 과정에 대시보드 CSV 생성 단계가 빠져 있었음
@@ -172,6 +192,9 @@ if __name__ == "__main__":
 #
 # 5. 다운로드한 파일이 불완전해도 후속 단계로 진행할 수 있었음
 #    → 다운로드 후 재검증하고 실패 시 전체 파이프라인을 중단함
+#
+# 6. 피드백 보강 분석 a6~a10이 전체 실행 과정에서 누락되어 있었음
+#    → 기존 a1~a5 다음에 추가하여 분석 전체를 순차 실행하도록 수정함
 #
 # [추후 보완 사항]
 # 1. 빈 SQLite DB에서 최초 구축 시 데이터 건수와 중복 여부 검증

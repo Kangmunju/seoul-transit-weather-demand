@@ -296,7 +296,8 @@ def main():
         scoring="neg_mean_absolute_error",
         n_repeats=3,
         random_state=SEED,
-        n_jobs=-1,
+        # 메모리 부족 현상을 방지하기 위해 n_jobs=1로 고정함
+        n_jobs=1,
         max_samples=0.5,
     )
 
