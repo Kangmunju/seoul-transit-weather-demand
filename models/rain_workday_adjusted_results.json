@@ -1,0 +1,69 @@
+{
+  "experiment": "rain_workday_adjusted",
+  "analysis_period": {
+    "start": "2019-01-02",
+    "end": "2024-12-31"
+  },
+  "workday_days": 1487,
+  "year_month_groups": 72,
+  "adjustment": "ride / same_year_month_workday_mean - 1",
+  "rain_definition": "rain_mm >= 1.0",
+  "rain_intensity_bins": [
+    "0mm",
+    "0 < rain_mm <= 5",
+    "5 < rain_mm <= 20",
+    "rain_mm > 20"
+  ],
+  "bootstrap": {
+    "method": "year_month_cluster",
+    "iterations": 2000,
+    "seed": 42,
+    "confidence_level": 0.95
+  },
+  "rain_comparison": {
+    "reference": "0",
+    "target": "1",
+    "reference_days": 1078,
+    "target_days": 409,
+    "reference_rel_pct": 0.39,
+    "target_rel_pct": -1.02,
+    "difference_pp": -1.41,
+    "ci_95_low": -2.02,
+    "ci_95_high": -0.86
+  },
+  "intensity_comparisons": [
+    {
+      "reference": "0mm",
+      "target": "0~5mm",
+      "reference_days": 866,
+      "target_days": 401,
+      "reference_rel_pct": 0.45,
+      "target_rel_pct": 0.28,
+      "difference_pp": -0.17,
+      "ci_95_low": -0.75,
+      "ci_95_high": 0.36
+    },
+    {
+      "reference": "0mm",
+      "target": "5~20mm",
+      "reference_days": 866,
+      "target_days": 134,
+      "reference_rel_pct": 0.45,
+      "target_rel_pct": -1.42,
+      "difference_pp": -1.87,
+      "ci_95_low": -2.54,
+      "ci_95_high": -1.21
+    },
+    {
+      "reference": "0mm",
+      "target": "20mm 초과",
+      "reference_days": 866,
+      "target_days": 86,
+      "reference_rel_pct": 0.45,
+      "target_rel_pct": -3.57,
+      "difference_pp": -4.01,
+      "ci_95_low": -5.71,
+      "ci_95_high": -2.44
+    }
+  ]
+}

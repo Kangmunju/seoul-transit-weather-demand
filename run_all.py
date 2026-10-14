@@ -23,12 +23,25 @@ def rule(title):
     print("=" * 70)
 
 
+# *args : 가변 위치 인자(Variable Positional Arguments)
+#        함수를 호출할 때 전달한 추가 위치 인자를 개수 제한 없이 받을 수 있음
+#        전달된 인자는 함수 내부에서 튜플(tuple)로 묶임
+#        *는 여러 위치 인자를 모아서 받는 역할을 함
+# cf) C에서 int *p의 *는 포인터 변수를 선언하거나 역참조할 때 사용함
 def run_script(script, *args):
-    # 현재 run_all.py를 실행한 Python으로 각 파일 실행
-    # Windows 환경에서도 하위 프로세스 출력 인코딩을 UTF-8로 통일
+
+    # os.environ.copy() : 현재 프로세스의 환경변수를 일반 딕셔너리로 복사하는 메서드
+    #                     복사본을 수정해도 os.environ 자체는 변경되지 않음
     env = os.environ.copy()
+
+    # PYTHONIOENCODING : Python의 표준 입출력 인코딩을 지정하는 환경변수
     env["PYTHONIOENCODING"] = "utf-8"
 
+    # subprocess.run() : 현재 Python 프로그램에서 외부 프로그램을 실행하는 함수
+    #                    지정한 프로그램의 실행이 끝날 때까지 기다린 후 결과를 반환함
+    #                    여기서는 각 Python 스크립트를 별도의 자식 프로세스로 실행함
+    # subprocess.run()은 실행 완료까지 기다리는 동기 방식(별도 프로세스 실행)
+    # 호출한 Python 프로그램과 자식 프로그램의 일반 변수는 직접 공유되지 않음
     subprocess.run(
         [
             sys.executable,
@@ -41,15 +54,49 @@ def run_script(script, *args):
     )
 
 
+def validate_subway_files():
+    # 기존 CSV를 다운로드 없이 검사
+    from src.download_data import validate_year_file
+
+    for year, path in zip(
+        range(2019, 2025),
+        SUBWAY_FILES,
+    ):
+        result = validate_year_file(path, year)
+
+        print(f"[ok ] {path.name}: {result['rows']:,}행 / {result['days']}일")
+
+
 def prepare_data():
     # 지하철 원본 파일이 모두 있는지 확인
-    subway_ready = all(file.exists() for file in SUBWAY_FILES)
+    subway_ready = all(file.is_file() for file in SUBWAY_FILES)
 
     if subway_ready:
-        print("[skip] 지하철 원본 데이터가 이미 존재함")
+        print("[check] 기존 지하철 원본 데이터 검증")
+
+        try:
+            validate_subway_files()
+
+        except (
+            ValueError,
+            OSError,
+        ) as error:
+            raise SystemExit(
+                "[FAIL] 기존 지하철 원본 데이터 검증 실패: "
+                f"{error}\n"
+                "불완전한 원본 파일을 확인한 후 "
+                "해당 파일을 복구해야 합니다."
+            ) from error
+
+        print("[skip] 지하철 원본 데이터가 이미 존재하며 검증 통과")
+
     else:
         print("[run ] 지하철 원본 데이터 다운로드")
         run_script("src/download_data.py")
+
+        # 새로 다운로드한 파일도 재검증
+        print("[check] 다운로드 결과 검증")
+        validate_subway_files()
 
     # 날씨 원본 파일 확인
     if WEATHER_FILE.exists():
@@ -108,6 +155,7 @@ if __name__ == "__main__":
 # 대시보드 데이터 생성 및 최종 검증까지 자동 실행하도록 구현함
 # 각 단계에서 오류가 발생하면 실행을 중단하여
 # 불완전한 결과를 전체 실행 성공으로 표시하지 않도록 구성함
+# 기존 지하철 CSV를 재사용할 때 날짜 범위와 CSV 구조를 검증함
 #
 # [발견한 문제 및 수정]
 # 1. 전체 실행 과정에 대시보드 CSV 생성 단계가 빠져 있었음
@@ -119,7 +167,13 @@ if __name__ == "__main__":
 # 3. Windows 환경에서 하위 프로세스 출력 인코딩 문제가 발생할 수 있었음
 #    → PYTHONIOENCODING을 UTF-8로 설정하여 실행 환경을 통일함
 #
+# 4. 기존 원본 파일이 존재하기만 하면 검증 없이 재사용하던 문제
+#    → 파일별 필수 컬럼과 날짜 범위를 확인한 후 재사용하도록 수정함
+#
+# 5. 다운로드한 파일이 불완전해도 후속 단계로 진행할 수 있었음
+#    → 다운로드 후 재검증하고 실패 시 전체 파이프라인을 중단함
+#
 # [추후 보완 사항]
 # 1. 빈 SQLite DB에서 최초 구축 시 데이터 건수와 중복 여부 검증
-# 2. 다운로드한 원본 CSV의 날짜 범위 및 데이터 완전성 검사
+# 2. 날짜별 역·노선 데이터의 완전성 검사
 # 3. 새 가상환경에서 전체 파이프라인 재실행 및 재현성 확인

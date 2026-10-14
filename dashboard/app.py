@@ -60,6 +60,23 @@ def load_leakage_results():
         return json.load(file)
 
 
+@st.cache_data
+def load_fixed_test_split_results():
+    # 동일한 2022년 테스트 기간을 사용한 분할 비교 결과
+    result_path = MODEL_DIR / "fixed_test_split_results.json"
+
+    if not result_path.exists():
+        st.error(
+            "동일 테스트 기간 비교 결과 파일이 없습니다. "
+            "프로젝트 최상위 폴더에서 "
+            "'python analysis/a8_fixed_test_split.py'를 먼저 실행해 주세요."
+        )
+        st.stop()
+
+    with open(result_path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
 def show_overview(data, metrics):
     st.header("프로젝트 개요")
 
@@ -1148,12 +1165,88 @@ def show_model_analysis():
     )
 
     st.warning(
-        "랜덤 split에서는 테스트 날짜와 가까운 날짜가 학습 데이터에 "
-        "포함될 수 있지만, 이번 실험에서 랜덤 split의 MAPE가 "
-        "시간순 split보다 더 높았습니다. "
-        "두 방식은 테스트 구간도 다르므로 점수를 직접 비교해 "
-        "한쪽이 우수하다고 단정할 수 없습니다. "
-        "실제 미래 예측 상황에 맞춰 시간순 split을 최종 평가 기준으로 사용했습니다."
+        "기존 무작위 분할과 시간순 분할은 테스트 날짜가 서로 다릅니다. "
+        "따라서 두 모델의 성능 차이를 데이터 분할 방식만의 영향으로 "
+        "해석할 수 없습니다. "
+        "실제 미래 예측 상황에서는 시간순 분할을 평가 기준으로 사용합니다."
+    )
+
+    st.divider()
+
+    # ---------------------------------------------------------
+    # 동일 테스트 기간에서 학습 데이터 구성 비교
+    # ---------------------------------------------------------
+
+    st.subheader("동일 테스트 기간에서 학습 데이터 구성 비교")
+
+    fixed_results = load_fixed_test_split_results()
+
+    st.write(
+        f"테스트 기간을 {fixed_results['test_start']}부터 "
+        f"{fixed_results['test_end']}까지 고정하고, "
+        f"두 모델 모두 {fixed_results['train_days_each']:,}일의 "
+        "학습 데이터를 사용했습니다."
+    )
+
+    time_result = fixed_results["time_split"]
+    mixed_result = fixed_results["mixed_split"]
+
+    fixed_comparison = pd.DataFrame(
+        [
+            {
+                "학습 방식": "시간순 학습",
+                "MAE": time_result["MAE"],
+                "MAPE (%)": time_result["MAPE_%"],
+                "R²": time_result["R2"],
+                "테스트 이후 학습 데이터": 0,
+            },
+            {
+                "학습 방식": "과거·미래 혼합 학습",
+                "MAE": mixed_result["MAE"],
+                "MAPE (%)": mixed_result["MAPE_%"],
+                "R²": mixed_result["R2"],
+                "테스트 이후 학습 데이터": fixed_results["mixed_future_days"],
+            },
+        ]
+    )
+
+    st.dataframe(
+        fixed_comparison.style.format(
+            {
+                "MAE": "{:,.0f}",
+                "MAPE (%)": "{:.2f}",
+                "R²": "{:.4f}",
+                "테스트 이후 학습 데이터": "{:,.0f}일",
+            }
+        ),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
+        "시간순 학습 MAPE",
+        f"{time_result['MAPE_%']:.2f}%",
+    )
+
+    col2.metric(
+        "혼합 학습 MAPE",
+        f"{mixed_result['MAPE_%']:.2f}%",
+    )
+
+    col3.metric(
+        "MAPE 차이",
+        f"{fixed_results['mixed_mape_improvement_pp']:.2f}%p",
+    )
+
+    st.warning(
+        "혼합 학습에는 테스트 기간 이후의 데이터 "
+        f"{fixed_results['mixed_future_days']:,}일이 포함되어 있습니다. "
+        "따라서 혼합 학습의 낮은 오차를 실제 미래 예측 성능으로 "
+        "해석할 수 없습니다. "
+        "또한 두 학습셋의 시간적 분포가 다르므로 "
+        "성능 차이 전체를 데이터 누수만의 효과로 단정할 수 없습니다."
     )
 
     st.divider()
@@ -1348,7 +1441,12 @@ if __name__ == "__main__":
 # 5. 랜덤 split의 성능을 시간순 split보다 우수하다고 단정할 가능성이 있었음
 #    → 테스트 기간이 다르다는 한계를 명시하고 해석 문구를 보완함
 #
+# 6. 기존 랜덤 spilt과 시간순 split의 테스트 날짜가 달라 직접 비교가 어려웠음
+#    → 2022년 테스트 기간을 고정한 추가 실험 결과를 대시보드에 반영함
+#    → 혼합 학습에 미래 데이터가 포함된다는 점과 해석상의 한계를 명시함
+#
 # [추후 보완 사항]
 # 1. 날씨 변수 제외 실험 결과를 추가하여 날씨의 실제 예측 기여도 시각화
 # 2. 연도·월 효과를 통제한 강우 영향 분석 결과 추가
 # 3. 사용자가 날짜와 날씨 조건을 입력하는 대화형 수요 예측 기능 추가
+# 4. 동일 테스트 기간 비교 결과를 다양한 시계열 구간으로 확장하여 검증
