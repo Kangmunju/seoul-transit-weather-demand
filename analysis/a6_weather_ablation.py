@@ -11,7 +11,9 @@ from sklearn.model_selection import TimeSeriesSplit
 
 from _common import load_merged
 
+
 import features as F
+from metrics_utils import mape
 
 
 # 프로젝트 최상위 폴더
@@ -25,20 +27,6 @@ SEED = 42
 
 # 호우일 기준: 일 강우량 30mm 이상
 HEAVY_RAIN_MM = 30.0
-
-
-def mape(y, pred):
-    # 실제값과 예측값을 numpy 배열로 변환
-    y = np.asarray(y, dtype=float)
-    pred = np.asarray(pred, dtype=float)
-
-    # 실제값이 0인 경우 0으로 나누지 않도록 처리
-    valid = y != 0
-
-    if not valid.any():
-        return float("nan")
-
-    return float(np.mean(np.abs((y[valid] - pred[valid]) / y[valid])) * 100)
 
 
 def evaluate(y, pred):

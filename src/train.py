@@ -16,6 +16,7 @@ from sklearn.metrics import (
 
 import features as F
 from clean import build_clean_data
+from metrics_utils import mape
 
 
 # 프로젝트 최상위 폴더
@@ -78,19 +79,6 @@ def load_data():
         con.close()
 
     return subway, weather
-
-
-def mape(y, pred):
-    y = np.asarray(y, dtype=float)  # 실제 이용량
-    pred = np.asarray(pred, dtype=float)  # 모델이 예측한 이용량
-
-    # 실제값이 0인 경우 0으로 나누는 문제 방지
-    valid = y != 0
-
-    if not valid.any():
-        return float("nan")
-
-    return float(np.mean(np.abs((y[valid] - pred[valid]) / y[valid])) * 100)
 
 
 def evaluate(y, pred):
