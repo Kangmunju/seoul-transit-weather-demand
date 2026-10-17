@@ -7,6 +7,8 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
+from predict_tab import show_predict_tab
+
 from analysis_extensions import (
     show_adjusted_rain,
     show_workday_rain,
@@ -1401,6 +1403,7 @@ def main():
             "날씨 영향",
             "팬데믹 변화",
             "수요 예측",
+            "직접 예측해보기",
             "모델 분석",
         ],
     )
@@ -1414,26 +1417,17 @@ def main():
     elif menu == "날씨 영향":
         show_weather_effect(data)
 
-        # a7: 강우 영향 통계적 보정
-        show_adjusted_rain()
-
-        # a9: 평일 강우 강도별 보정
-        show_workday_rain()
-
     elif menu == "팬데믹 변화":
         show_pandemic(data)
-
-        # a10: 전체 역과 고정 역 회복률 비교
-        show_fixed_station_pandemic()
 
     elif menu == "수요 예측":
         show_prediction(metrics)
 
+    elif menu == "직접 예측해보기":
+        show_predict_tab()
+
     elif menu == "모델 분석":
         show_model_analysis()
-
-        # a6: 날씨 변수 포함/제외 실험
-        show_weather_ablation()
 
     else:
         st.info(f"'{menu}' 화면은 다음 단계에서 추가합니다.")
@@ -1477,7 +1471,8 @@ if __name__ == "__main__":
 #    → 혼합 학습에 미래 데이터가 포함된다는 점과 해석상의 한계를 명시함
 #
 # [추후 보완 사항]
-# 1. 날씨 변수 제외 실험 결과를 추가하여 날씨의 실제 예측 기여도 시각화
+# 1. 날씨 변수 제외 실험 결과를 추가하여 날시의 실제 예측 기여도 시각화
 # 2. 연도·월 효과를 통제한 강우 영향 분석 결과 추가
-# 3. 사용자가 날짜와 날씨 조건을 입력하는 대화형 수요 예측 기능 추가
+# 3. 직접 예측 기능의 날짜 변경, 입력값 처리, 모델 로딩 검증
 # 4. 동일 테스트 기간 비교 결과를 다양한 시계열 구간으로 확장하여 검증
+# 5. Streamlit Cloud 배포 환경에서 직접 예측 메뉴의 정상 동작 확인
