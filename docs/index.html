@@ -1,0 +1,1189 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="서울 지하철 수요와 날씨의 관계를 분석하고 머신러닝으로 일별 이용량을 예측한 데이터 분석 프로젝트">
+  <title>서울 지하철 수요 × 날씨 예측 | Portfolio</title>
+
+  <style>
+    :root {
+      --bg: #090f1c;
+      --surface: #111b2c;
+      --surface-2: #17243a;
+      --border: #2b3c54;
+      --text: #edf3fb;
+      --muted: #a9bad0;
+      --accent: #72b8ff;
+      --mint: #79e2c1;
+      --yellow: #f2ca82;
+      --max-width: 1120px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        "Pretendard", "Noto Sans KR",
+        -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      line-height: 1.8;
+      word-break: keep-all;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .container {
+      width: min(calc(100% - 40px), var(--max-width));
+      margin: 0 auto;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9, 15, 28, 0.94);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav {
+      min-height: 72px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      font-size: 1.05rem;
+    }
+
+    .brand span {
+      color: var(--accent);
+    }
+
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    .hero {
+      padding: 110px 0 90px;
+      background:
+        radial-gradient(
+          ellipse at 75% 20%,
+          rgba(43, 113, 186, 0.24),
+          transparent 48%
+        ),
+        radial-gradient(
+          ellipse at 15% 85%,
+          rgba(38, 133, 120, 0.12),
+          transparent 40%
+        );
+    }
+
+    .eyebrow {
+      display: inline-block;
+      color: var(--mint);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.35;
+      letter-spacing: -0.045em;
+    }
+
+    h1 {
+      margin: 22px 0;
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      font-weight: 850;
+    }
+
+    h1 .highlight {
+      color: var(--accent);
+    }
+
+    .hero-description {
+      max-width: 740px;
+      color: var(--muted);
+      font-size: 1.12rem;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 34px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 10px 20px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      font-weight: 650;
+      transition: 0.2s;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .button.primary {
+      color: #08101d;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 65px;
+    }
+
+    .metric {
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(17, 27, 44, 0.8);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+
+    .metric-value {
+      display: block;
+      margin: 10px 0 4px;
+      color: var(--accent);
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .metric-note {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    section.content-section {
+      padding: 95px 0;
+      border-top: 1px solid rgba(43, 60, 84, 0.65);
+    }
+
+    .section-title {
+      margin: 10px 0 18px;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+    }
+
+    .section-description {
+      max-width: 800px;
+      color: var(--muted);
+      margin-bottom: 35px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      min-width: 0;
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 1.18rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .card-number {
+      display: block;
+      color: var(--mint);
+      font-size: 0.8rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .result-value {
+      display: block;
+      color: var(--accent);
+      font-size: 2rem;
+      font-weight: 800;
+      margin: 14px 0;
+      line-height: 1.3;
+    }
+
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      padding: 5px 11px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      min-width: 560px;
+    }
+
+    th, td {
+      padding: 17px 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.92rem;
+    }
+
+    th {
+      color: var(--muted);
+      background: var(--surface-2);
+      font-weight: 650;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .good {
+      color: var(--mint);
+      font-weight: 750;
+    }
+
+    .chart-card {
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-top: 22px;
+    }
+
+    .chart-card h3 {
+      margin-top: 0;
+    }
+
+    .chart-description {
+      color: var(--muted);
+      font-size: 0.87rem;
+      margin-bottom: 20px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 145px minmax(0, 1fr) 75px;
+      gap: 14px;
+      align-items: center;
+      margin: 18px 0;
+    }
+
+    .bar-label {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .bar-track {
+      height: 18px;
+      overflow: hidden;
+      background: var(--surface-2);
+      border-radius: 5px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: var(--bar-width);
+      border-radius: 5px;
+      background: var(--accent);
+    }
+
+    .bar-fill.secondary {
+      background: var(--mint);
+    }
+
+    .bar-value {
+      text-align: right;
+      font-size: 0.9rem;
+      font-weight: 750;
+    }
+
+    .notice {
+      padding: 22px 26px;
+      margin-top: 24px;
+      border-left: 3px solid var(--yellow);
+      background: rgba(242, 202, 130, 0.07);
+      border-radius: 0 10px 10px 0;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    .notice strong {
+      color: var(--text);
+    }
+
+    .steps {
+      display: grid;
+      gap: 16px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 65px minmax(0, 1fr);
+      gap: 20px;
+      padding: 25px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .step-index {
+      color: var(--mint);
+      font-weight: 800;
+      font-size: 1.4rem;
+    }
+
+    .step h3 {
+      margin: 0 0 8px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    .footer {
+      padding: 45px 0;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer a {
+      color: var(--accent);
+    }
+
+    @media (max-width: 850px) {
+      .metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-links {
+        gap: 12px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .nav {
+        align-items: flex-start;
+        padding: 16px 0;
+        flex-direction: column;
+      }
+
+      .hero {
+        padding: 75px 0 65px;
+      }
+
+      .metrics,
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      section.content-section {
+        padding: 65px 0;
+      }
+
+      .bar-row {
+        grid-template-columns: 100px minmax(0, 1fr) 58px;
+        gap: 8px;
+      }
+
+      .bar-label,
+      .bar-value {
+        font-size: 0.78rem;
+      }
+
+      .step {
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ======================================================
+       상단 내비게이션
+  ====================================================== -->
+
+  <header class="header">
+    <nav class="nav container">
+      <a href="#home" class="brand">
+        SEOUL <span>TRANSIT LAB</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="#about">프로젝트</a>
+        <a href="#data">데이터</a>
+        <a href="#analysis">분석</a>
+        <a href="#model">모델</a>
+        <a href="#limitations">한계</a>
+        <a href="#links">바로가기</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- ====================================================
+         1. 프로젝트 소개
+    ==================================================== -->
+
+    <section id="home" class="hero">
+      <div class="container">
+
+        <span class="eyebrow">
+          Data Analysis · Machine Learning · Time Series
+        </span>
+
+        <h1>
+          비가 오면<br>
+          <span class="highlight">지하철을 덜 탈까?</span>
+        </h1>
+
+        <p class="hero-description">
+          서울 지하철 이용량과 날씨 데이터를 결합하여
+          강우와 대중교통 수요의 관계를 분석했습니다.
+          시간순 검증을 통해 일별 수요 예측 모델을 평가하고,
+          날씨 정보가 실제로 얼마나 도움이 되는지 확인했습니다.
+        </p>
+
+        <div class="buttons">
+          <a
+            class="button primary"
+            href="#analysis">
+            분석 결과 살펴보기 →
+          </a>
+
+          <a
+            class="button"
+            href="https://seoul-transit-weather-demand.streamlit.app/"
+            target="_blank"
+            rel="noopener noreferrer">
+            대시보드 체험하기 ↗
+          </a>
+
+          <a
+            class="button"
+            href="https://github.com/Kangmunju/seoul-transit-weather-demand"
+            target="_blank"
+            rel="noopener noreferrer">
+            GitHub 저장소 ↗
+          </a>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <span class="metric-label">분석 기간</span>
+            <strong class="metric-value">2019–2024</strong>
+            <span class="metric-note">6개 연도</span>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">Random Forest MAPE</span>
+            <strong class="metric-value">2.99%</strong>
+            <span class="metric-note">시간순 테스트 기준</span>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">Random Forest R²</span>
+            <strong class="metric-value">0.9649</strong>
+            <span class="metric-note">테스트 구간 평가</span>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">날씨 제외 모델 MAPE</span>
+            <strong class="metric-value">3.19%</strong>
+            <span class="metric-note">날씨 기여도 비교</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================
+         2. 프로젝트 목적
+    ==================================================== -->
+
+    <section id="about" class="content-section">
+      <div class="container">
+
+        <span class="eyebrow">01 / Research Questions</span>
+        <h2 class="section-title">무엇을 확인하고 싶었을까?</h2>
+
+        <p class="section-description">
+          단순히 비 오는 날의 이용량을 비교하는 것을 넘어,
+          요일과 시기 등 수요에 영향을 미치는 다른 조건을
+          고려한 분석을 목표로 했습니다.
+        </p>
+
+        <div class="grid-3">
+
+          <article class="card">
+            <span class="card-number">QUESTION 01</span>
+            <h3>비가 오면 지하철 이용량이 달라질까?</h3>
+            <p>
+              비 오는 날과 오지 않는 날의 차이를 확인하고,
+              다른 조건을 고려한 보정 분석을 수행했습니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <span class="card-number">QUESTION 02</span>
+            <h3>날씨는 예측 성능에 도움이 될까?</h3>
+            <p>
+              날씨 변수를 포함한 모델과 제외한 모델을
+              같은 평가 기준으로 비교했습니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <span class="card-number">QUESTION 03</span>
+            <h3>팬데믹 이후 수요는 회복됐을까?</h3>
+            <p>
+              2019년을 기준으로 이용량 변화를 살펴보고,
+              동일한 역 집합을 고정한 비교도 수행했습니다.
+            </p>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         3. 데이터와 전처리
+    ==================================================== -->
+
+    <section id="data" class="content-section">
+      <div class="container">
+
+        <span class="eyebrow">02 / Data Pipeline</span>
+        <h2 class="section-title">서로 다른 데이터를 하나로</h2>
+
+        <p class="section-description">
+          서울 지하철 이용 데이터와 일별 날씨 데이터를
+          날짜 기준으로 결합했습니다.
+          원천 데이터의 구조와 품질을 확인한 뒤
+          모델링에 필요한 시계열 특성을 생성했습니다.
+        </p>
+
+        <div class="steps">
+
+          <div class="step">
+            <div class="step-index">01</div>
+            <div>
+              <h3>원천 데이터 수집</h3>
+              <p>
+                2019~2024년 서울 지하철 승하차 기록과
+                일별 기상 데이터를 확보했습니다.
+                원본은 별도로 보관하고 재실행 가능한
+                수집·적재 절차를 구성했습니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-index">02</div>
+            <div>
+              <h3>정제 및 데이터 품질 검증</h3>
+              <p>
+                역명 표기를 정규화하고,
+                중복 키·결측·비정상 값·강수 관련
+                불일치 사례를 점검했습니다.
+                SQLite UNIQUE 제약을 통해
+                중복 키의 추가 적재를 방지했습니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-index">03</div>
+            <div>
+              <h3>날짜 기준 결합 및 피처 생성</h3>
+              <p>
+                날씨, 요일, 달력 특성과 함께
+                이전 이용량(lag) 및 이동평균(rolling)
+                피처를 생성했습니다.
+                미래 시점의 수요 정보가
+                과거 예측에 유입되지 않도록
+                시간 순서를 고려했습니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-index">04</div>
+            <div>
+              <h3>시간순 모델 평가</h3>
+              <p>
+                학습 기간은 2019-01-08~2023-07-03,
+                테스트 기간은 2023-07-04~2024-12-31로
+                구분했습니다.
+                추가로 Walk-forward 검증을 수행했습니다.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="notice">
+          <strong>데이터 품질 관련 참고</strong><br>
+          원천 적재 과정에서 중복 키 그룹 372개와
+          추가 중복 행 372개를 확인했습니다.
+          제외된 행에 기록된 이용량 합계는 230,226건으로,
+          원본 전체 기록량 대비 약 0.00083%입니다.
+          이 수치는 실제 수요 누락량을 의미하지 않으며,
+          중복 발생 원인도 확정하지 않았습니다.
+        </div>
+
+        <div class="tag-list">
+          <span class="tag">Python</span>
+          <span class="tag">Pandas</span>
+          <span class="tag">SQLite</span>
+          <span class="tag">Open-Meteo</span>
+          <span class="tag">Scikit-learn</span>
+          <span class="tag">Time Series</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================
+         4. 주요 분석 결과
+    ==================================================== -->
+
+    <section id="analysis" class="content-section">
+      <div class="container">
+
+        <span class="eyebrow">03 / Key Findings</span>
+        <h2 class="section-title">데이터가 보여준 결과</h2>
+
+        <p class="section-description">
+          강우와 이용량의 관계, 날씨 변수의 예측 기여도,
+          팬데믹 이후의 구조적 변화를 중심으로 분석했습니다.
+        </p>
+
+        <div class="grid-3">
+
+          <article class="card">
+            <span class="card-number">FINDING 01</span>
+            <h3>강우일 이용량 차이</h3>
+            <strong class="result-value">−2.61%</strong>
+            <p>
+              보정 분석에서 강우일의 이용량은
+              약 330,335건 낮게 나타났습니다.
+              관찰된 연관성이며 강우의
+              인과적 효과로 단정할 수는 없습니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <span class="card-number">FINDING 02</span>
+            <h3>날씨 변수의 기여</h3>
+            <strong class="result-value">0.20%p</strong>
+            <p>
+              날씨를 포함한 모델의 MAPE는 2.99%,
+              제외한 모델은 3.19%였습니다.
+              동일한 테스트 구간에서 비교한 결과입니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <span class="card-number">FINDING 03</span>
+            <h3>2024년 수요 회복</h3>
+            <strong class="result-value">−7.84%</strong>
+            <p>
+              동일한 576개 역을 고정한 비교에서
+              2024년 이용량은 2019년보다
+              7.84% 낮았습니다.
+            </p>
+          </article>
+
+        </div>
+
+        <div class="chart-card">
+          <h3>날씨 포함 여부에 따른 예측 오차</h3>
+          <p class="chart-description">
+            MAPE가 낮을수록 실제 이용량과 예측값의
+            평균적인 비율 오차가 작습니다.
+            막대 길이는 0~4% 범위를 기준으로 표시했습니다.
+          </p>
+
+          <div class="bar-row">
+            <span class="bar-label">날씨 포함</span>
+            <div class="bar-track">
+              <div
+                class="bar-fill secondary"
+                style="--bar-width:74.75%">
+              </div>
+            </div>
+            <span class="bar-value">2.99%</span>
+          </div>
+
+          <div class="bar-row">
+            <span class="bar-label">날씨 제외</span>
+            <div class="bar-track">
+              <div
+                class="bar-fill"
+                style="--bar-width:79.75%">
+              </div>
+            </div>
+            <span class="bar-value">3.19%</span>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>폭우일 25일에 대한 별도 평가</h3>
+          <p class="chart-description">
+            폭우일에 한정해 비교했을 때
+            날씨 변수를 포함한 모델의 오차가 더 작았습니다.
+            막대 길이는 0~8% 범위를 기준으로 표시했습니다.
+          </p>
+
+          <div class="bar-row">
+            <span class="bar-label">날씨 포함</span>
+            <div class="bar-track">
+              <div
+                class="bar-fill secondary"
+                style="--bar-width:54%">
+              </div>
+            </div>
+            <span class="bar-value">4.32%</span>
+          </div>
+
+          <div class="bar-row">
+            <span class="bar-label">날씨 제외</span>
+            <div class="bar-track">
+              <div
+                class="bar-fill"
+                style="--bar-width:78.125%">
+              </div>
+            </div>
+            <span class="bar-value">6.25%</span>
+          </div>
+        </div>
+
+        <div class="notice">
+          <strong>교차 검증 결과</strong><br>
+          Walk-forward 5개 구간 중 3개에서
+          날씨 변수를 포함한 모델의 성능이 개선됐지만,
+          평균 개선 폭은 약 0.02%p였습니다.
+          따라서 날씨의 기여가 모든 기간에서
+          일관되게 크다고 주장할 수는 없습니다.
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================
+         5. 모델 성능
+    ==================================================== -->
+
+    <section id="model" class="content-section">
+      <div class="container">
+
+        <span class="eyebrow">04 / Modeling</span>
+        <h2 class="section-title">얼마나 정확하게 예측했을까?</h2>
+
+        <p class="section-description">
+          과거 수요와 날씨·달력 정보를 이용하여
+          일별 지하철 이용량을 예측했습니다.
+          평가에서는 미래 데이터를 학습에 섞지 않고
+          시간순으로 학습·테스트 구간을 분리했습니다.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>평가 항목</th>
+                <th>결과</th>
+                <th>의미</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>MAPE</td>
+                <td class="good">2.99%</td>
+                <td>평균 절대 백분율 오차</td>
+              </tr>
+
+              <tr>
+                <td>MAE</td>
+                <td>347,269.3건</td>
+                <td>일별 이용량의 평균 절대 오차</td>
+              </tr>
+
+              <tr>
+                <td>R²</td>
+                <td>0.9649</td>
+                <td>테스트 데이터 기준 결정계수</td>
+              </tr>
+
+              <tr>
+                <td>날씨 제외 MAPE</td>
+                <td>3.19%</td>
+                <td>날씨 변수 기여도 비교</td>
+              </tr>
+
+              <tr>
+                <td>휴일 피처 실험 MAPE</td>
+                <td>2.89%</td>
+                <td>별도 피처 개선 실험 결과</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid-2" style="margin-top:22px">
+
+          <article class="card">
+            <span class="card-number">FEATURE ENGINEERING</span>
+            <h3>과거 이용량과 달력 정보</h3>
+            <p>
+              전일·전주 이용량, 과거 이동평균,
+              요일과 달력 관련 정보를 활용했습니다.
+              이러한 피처는 지하철 수요의 반복적
+              패턴을 설명하는 데 중요한 역할을 합니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <span class="card-number">VALIDATION</span>
+            <h3>시간 누수 방지</h3>
+            <p>
+              무작위 분할 대신 시간순 분할을 적용하고,
+              여러 시점에서 학습과 평가를 반복하는
+              Walk-forward 검증을 수행했습니다.
+            </p>
+          </article>
+
+        </div>
+
+        <div class="notice">
+          <strong>예측 기능의 범위</strong><br>
+          모델은 lag_1, lag_7 및 이동평균처럼
+          예측 대상 날짜 이전의 실제 이용량을
+          필요로 합니다.
+          따라서 날짜와 날씨만 입력해서
+          임의의 미래 날짜를 독립적으로
+          예측하는 모델은 아닙니다.
+          대시보드의 조건 변경 기능 역시
+          이러한 전제를 가진 시나리오 비교로
+          이해해야 합니다.
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================
+         6. 한계와 개선 방향
+    ==================================================== -->
+
+    <section id="limitations" class="content-section">
+      <div class="container">
+
+        <span class="eyebrow">05 / Limitations</span>
+        <h2 class="section-title">결과를 어디까지 해석할 수 있을까?</h2>
+
+        <p class="section-description">
+          높은 예측 성능뿐 아니라,
+          데이터와 분석 방법이 가진 제약도
+          함께 제시했습니다.
+        </p>
+
+        <div class="grid-2">
+
+          <article class="card">
+            <h3>01. 강우의 인과적 영향</h3>
+            <p>
+              강우일과 비강우일의 이용량 차이는
+              관찰 데이터에서 확인한 연관성입니다.
+              분석에 포함하지 못한 다른 요인의
+              영향을 완전히 제거했다고 볼 수 없습니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>02. 과거 수요 피처 의존성</h3>
+            <p>
+              모델은 실제 과거 이용량을 활용하므로,
+              과거 수요를 알 수 없는 먼 미래 날짜에
+              그대로 적용할 수 없습니다.
+              장기 예측에는 별도 예측 전략이 필요합니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>03. 데이터 품질과 집계 범위</h3>
+            <p>
+              원천 데이터에는 중복 키와
+              역명 표기 차이 등이 존재했습니다.
+              중복 행의 실제 발생 원인은 확정되지 않았고,
+              분석 결과는 사용한 데이터의
+              수집 범위에 한정됩니다.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>04. 팬데믹 이후 구조 변화</h3>
+            <p>
+              2019년과 2024년은 이용 패턴이
+              동일한 시기가 아닙니다.
+              전체 집계와 동일 역 집합 비교의
+              결과도 구분해 해석해야 합니다.
+            </p>
+          </article>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================
+         7. 프로젝트 링크
+    ==================================================== -->
+
+    <section id="links" class="content-section">
+      <div class="container">
+
+        <span class="eyebrow">06 / Explore Project</span>
+        <h2 class="section-title">코드와 대시보드 살펴보기</h2>
+
+        <p class="section-description">
+          전체 코드, 데이터 처리 과정,
+          분석 보고서는 GitHub 저장소에서 확인할 수 있습니다.
+          Streamlit 대시보드는 별도로 실행하거나
+          배포된 주소에서 이용할 수 있습니다.
+        </p>
+
+        <div class="grid-2">
+
+          <article class="card">
+            <span class="card-number">SOURCE CODE</span>
+            <h3>GitHub Repository</h3>
+            <p>
+              데이터 수집부터 전처리,
+              모델 학습, 분석 스크립트,
+              재현성 검증 코드를 확인할 수 있습니다.
+            </p>
+
+            <div class="buttons">
+              <a
+                class="button primary"
+                href="https://github.com/Kangmunju/seoul-transit-weather-demand"
+                target="_blank"
+                rel="noopener noreferrer">
+                GitHub 열기 ↗
+              </a>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-number">INTERACTIVE DASHBOARD</span>
+            <h3>Streamlit Dashboard</h3>
+            <p>
+              이용 패턴, 날씨 영향, 팬데믹 변화,
+              수요 예측과 조건별 예측 결과를
+              직접 확인할 수 있습니다.
+            </p>
+
+            <div class="buttons">
+              <a
+                class="button"
+                href="https://seoul-transit-weather-demand.streamlit.app/"
+                target="_blank"
+                rel="noopener noreferrer">
+                대시보드 열기 ↗
+              </a>
+            </div>
+
+          </article>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================================================
+       하단 영역
+  ====================================================== -->
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>
+        Seoul Transit × Weather Demand Prediction
+      </span>
+
+      <a
+        href="https://github.com/Kangmunju/seoul-transit-weather-demand"
+        target="_blank"
+        rel="noopener noreferrer">
+        GitHub ↗
+      </a>
+    </div>
+  </footer>
+
+  <script>
+    // ========================================================
+    // 내비게이션 현재 섹션 표시
+    // ========================================================
+
+    const navLinks = document.querySelectorAll(
+      ".nav-links a"
+    );
+
+    const sections = document.querySelectorAll(
+      "main section[id]"
+    );
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) {
+              return;
+            }
+
+            const activeId = entry.target.id;
+
+            navLinks.forEach((link) => {
+              const isActive =
+                link.getAttribute("href") ===
+                "#" + activeId;
+
+              link.style.color = isActive
+                ? "var(--accent)"
+                : "";
+            });
+          });
+        },
+        {
+          rootMargin: "-20% 0px -65% 0px"
+        }
+      );
+
+      sections.forEach((section) => {
+        observer.observe(section);
+      });
+    }
+
+    // ========================================================
+    // [구현 핵심]
+    // ========================================================
+    // 1. 단일 HTML 파일로 구성해 GitHub Pages에서 배포 가능
+    // 2. 외부 JavaScript 라이브러리 없이 작동
+    // 3. CSS 기반 반응형 레이아웃 적용
+    // 4. 분석 수치를 정적 콘텐츠로 명시
+    // 5. GitHub와 Streamlit 대시보드의 역할을 구분
+    //
+    // [발견한 문제 및 수정]
+    // 1. 기존 프로젝트에 웹페이지가 존재하지 않았음
+    //    → docs/index.html을 신규 작성
+    //
+    // 2. 미래 수요를 자유롭게 예측할 수 있는 것으로
+    //    오해할 가능성이 있음
+    //    → 과거 실제 이용량 피처 의존성을 명시
+    //
+    // 3. 강우일 차이를 인과적 효과로 오해할 가능성이 있음
+    //    → 관찰된 연관성과 인과관계를 구분
+    //
+    // [추후 보완 사항]
+    // 1. 실제 분석 이미지 및 그래프 추가
+    // 2. Streamlit 공개 배포 주소 확인 후 직접 연결
+    // 3. GitHub Pages 공개 배포 및 브라우저 테스트
+    // 4. README와 보고서의 수치 및 설명 일치 여부 검증
+  </script>
+
+</body>
+</html>
